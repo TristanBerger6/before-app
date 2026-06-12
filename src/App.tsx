@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react';
 import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { MigrateLocalListsDialog } from './components/MigrateLocalListsDialog';
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HydrationGate>
+      <Analytics />
     </BrowserRouter>
   );
 }
