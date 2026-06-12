@@ -1,6 +1,7 @@
 import { KeyRound, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { resolvePostAuthPath } from '../lib/authRedirect';
 import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -13,7 +14,10 @@ const OTP_COOLDOWN_MS = 60_000;
 
 export function AuthPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { sendEmailOtp, verifyEmailOtp, signInWithGoogle } = useAuthStore();
+  const authNext = searchParams.get('next');
+  const openFeedback = searchParams.get('feedback') === '1';
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
@@ -84,13 +88,16 @@ export function AuthPage() {
       setError(result.error);
       return;
     }
-    navigate('/', { replace: true });
+    navigate(resolvePostAuthPath(authNext, openFeedback), { replace: true });
   };
 
   const handleGoogle = async () => {
     setLoading(true);
     setError(null);
-    const result = await signInWithGoogle();
+    const result = await signInWithGoogle({
+      next: authNext ?? '/',
+      openFeedback,
+    });
     setLoading(false);
     if (!result.ok) {
       setError(result.error);

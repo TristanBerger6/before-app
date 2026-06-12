@@ -37,6 +37,7 @@ import {
 } from '../storage/localStorage';
 import type { AppData, GameState, Player, Rule, RuleSet } from '../types';
 import { useAuthStore } from './authStore';
+import { useLiveSessionStore } from './liveSessionStore';
 
 interface AppStore {
   ruleSets: RuleSet[];
@@ -122,12 +123,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const user = getActiveUser();
     const { ruleSets, pendingLocalMerge } = await loadRuleSetsForUser(user);
 
+    const game = data.game ? normalizeGameState(data.game) : { ...initialGameState };
+    const effectiveRuleSets =
+      user && isSupabaseConfigured() ? ruleSets : data.ruleSets;
+
     set({
-      ruleSets: user && isSupabaseConfigured() ? ruleSets : data.ruleSets,
+      ruleSets: effectiveRuleSets,
       pendingLocalMerge,
-      game: data.game ? normalizeGameState(data.game) : { ...initialGameState },
+      game,
       isHydrated: true,
     });
+
+    useLiveSessionStore.getState().hydrateCredentials();
+    if (game.isActive) {
+      const ruleSet = effectiveRuleSets.find(
+        (rs) => rs.id === game.selectedRuleSetId,
+      );
+      if (ruleSet) {
+        void useLiveSessionStore.getState().ensureSession(ruleSet, game);
+      }
+    }
   },
 
   async handleAuthChange(user) {
@@ -248,9 +263,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   startGame() {
+    const { ruleSets } = get();
     const game = startGame(get().game);
     set({ game });
     void persistGame(game);
+
+    const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
+    if (ruleSet) {
+      void useLiveSessionStore.getState().ensureSession(ruleSet, game);
+    }
   },
 
   drawRule() {
@@ -258,28 +279,42 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
     if (!ruleSet) return { ok: false, reason: 'no_rules' as const };
 
+    const drawer = game.currentPlayers[game.currentPlayerIndex];
     const result = drawRule(ruleSet, game);
     if (!result.ok) {
-      if (result.state) set({ game: result.state });
+      if (result.state) {
+        set({ game: result.state });
+        void useLiveSessionStore.getState().pushState(result.state);
+      }
       void persistGame(result.state ?? game);
       return result;
     }
     set({ game: result.state });
     void persistGame(result.state);
     if ('kind' in result) {
+      void useLiveSessionStore.getState().pushState(result.state);
       return { ok: true, kind: 'special_event' as const };
     }
+    void useLiveSessionStore.getState().pushState(result.state, {
+      lastDrawnRule: result.rule,
+      lastDrawnBy: drawer,
+    });
     return { ok: true, rule: result.rule };
   },
 
   drawSpecialRule() {
     const { game, ruleSets } = get();
+    const drawer = game.currentPlayers[game.currentPlayerIndex];
     const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
     if (!ruleSet) return { ok: false };
     const result = drawSpecialRule(ruleSet, game);
     if (!result.ok) return result;
     set({ game: result.state });
     void persistGame(result.state);
+    void useLiveSessionStore.getState().pushState(result.state, {
+      lastDrawnRule: result.rule,
+      lastDrawnBy: drawer,
+    });
     return { ok: true, rule: result.rule };
   },
 
@@ -287,9 +322,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const game = nextPlayer(get().game);
     set({ game });
     void persistGame(game);
+    void useLiveSessionStore.getState().pushState(game);
   },
 
   resetGame() {
+    void useLiveSessionStore.getState().endSession();
     const game = resetGame();
     set({ game });
     void persistGame(game);
@@ -299,7 +336,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const game = resetRound(get().game);
     set({ game });
     void persistGame(game);
+    void useLiveSessionStore.getState().pushState(game, { clearLastDrawn: true });
   },
+
 
   exportRuleSet(id) {
     const ruleSet = get().ruleSets.find((rs) => rs.id === id);

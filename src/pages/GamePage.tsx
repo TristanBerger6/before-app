@@ -1,12 +1,11 @@
-import {
-  getCurrentTour,
-  hasPendingPlayerChanges,
-} from '../core/gameEngine';
-import { getPlayerAccentColor } from '../core/playerColor';
+import { hasPendingPlayerChanges } from '../core/gameEngine';
 import clsx from 'clsx';
 import { LogOut, RotateCcw, Settings, Sparkles, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FeedbackButton } from '../components/feedback/FeedbackButton';
+import { LiveSessionBanner } from '../components/game/LiveSessionBanner';
+import { TurnPlayerCard } from '../components/game/TurnPlayerCard';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { RuleListItem } from '../components/RuleListItem';
 import { AppShell } from '../components/layout/AppShell';
@@ -16,6 +15,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { formatActivePersistentMeta } from '../core/ruleHelpers';
 import { useAppStore } from '../stores/appStore';
+import { useLiveSessionStore } from '../stores/liveSessionStore';
 import type { Rule } from '../types';
 
 export function GamePage() {
@@ -36,14 +36,41 @@ export function GamePage() {
   const [confirmResetRound, setConfirmResetRound] = useState(false);
   const [cycleResetVisible, setCycleResetVisible] = useState(false);
   const [specialEventOpen, setSpecialEventOpen] = useState(false);
+  const [hasDrawnThisTurn, setHasDrawnThisTurn] = useState(false);
+  const lastTurnKeyRef = useRef('');
+  const startHeartbeat = useLiveSessionStore((s) => s.startHeartbeat);
+  const stopHeartbeat = useLiveSessionStore((s) => s.stopHeartbeat);
+  const ensureSession = useLiveSessionStore((s) => s.ensureSession);
 
   const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
+
+  useEffect(() => {
+    if (game.isActive && ruleSet) {
+      void ensureSession(ruleSet, game);
+    }
+    startHeartbeat(() => useAppStore.getState().game);
+    return () => stopHeartbeat();
+  }, [game.isActive, ruleSet, ensureSession, startHeartbeat, stopHeartbeat]);
+
+  const turnKey = `${game.totalTurns}:${game.currentPlayerIndex}`;
+
+  useEffect(() => {
+    if (lastTurnKeyRef.current !== turnKey) {
+      lastTurnKeyRef.current = turnKey;
+      setHasDrawnThisTurn(false);
+    }
+  }, [turnKey]);
+
+  const suggestDraw = !hasDrawnThisTurn;
+  const suggestNext = hasDrawnThisTurn;
+  const flowHighlight =
+    'border-accent/60 bg-accent/15 text-foreground shadow-[0_0_16px_rgba(168,85,247,0.35)]';
+  const flowMuted = 'opacity-45 hover:opacity-70';
+
   const currentPlayer = game.currentPlayers[game.currentPlayerIndex];
-  const tour = getCurrentTour(game);
   const pendingChanges = hasPendingPlayerChanges(game);
   const specialHighlighted =
     game.specialHighlightPlayerId === currentPlayer?.id;
-  const playerColor = getPlayerAccentColor(currentPlayer?.id ?? '');
 
   if (!game.isActive || !currentPlayer || !ruleSet) {
     return (
@@ -72,6 +99,7 @@ export function GamePage() {
       return;
     }
     setCycleResetVisible(false);
+    setHasDrawnThisTurn(true);
     setDrawnRule(result.rule);
   };
 
@@ -81,6 +109,7 @@ export function GamePage() {
       setInfo('Aucune règle spéciale disponible');
       return;
     }
+    setHasDrawnThisTurn(true);
     setDrawnRule(result.rule);
   };
 
@@ -101,6 +130,7 @@ export function GamePage() {
       title="Partie en cours"
       headerRight={
         <div className="flex items-center gap-1">
+          <FeedbackButton />
           <button
             type="button"
             onClick={() => setConfirmResetRound(true)}
@@ -132,6 +162,8 @@ export function GamePage() {
       }
     >
       <div className="flex flex-col gap-4 pb-36">
+        <LiveSessionBanner />
+
         {cycleResetVisible && (
           <div className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3">
             <Sparkles size={18} className="text-accent shrink-0 mt-0.5" />
@@ -172,51 +204,7 @@ export function GamePage() {
           </div>
         )}
 
-        <div className="rounded-2xl border border-border/80 bg-surface-1/90 px-4 py-3 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-lg font-semibold"
-              style={{
-                color: playerColor,
-                backgroundColor: `${playerColor}22`,
-                border: `1px solid ${playerColor}44`,
-              }}
-              aria-hidden
-            >
-              {currentPlayer.name.charAt(0)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-accent/80 mb-0.5">
-                À jouer
-              </p>
-              <p className="font-display text-xl leading-tight text-foreground truncate">
-                {currentPlayer.name}
-              </p>
-              <p className="text-xs text-muted mt-1 tabular-nums">
-                Tour {tour} · {game.currentPlayerIndex + 1}/{game.currentPlayers.length}
-              </p>
-            </div>
-            <div
-              className="flex items-center gap-1 shrink-0"
-              aria-label={`Joueur ${game.currentPlayerIndex + 1} sur ${game.currentPlayers.length}`}
-            >
-              {game.currentPlayers.map((player, index) => {
-                const color = getPlayerAccentColor(player.id);
-                const active = index === game.currentPlayerIndex;
-                return (
-                  <span
-                    key={player.id}
-                    className={clsx(
-                      'h-1.5 rounded-full transition-all duration-200',
-                      active ? 'w-3.5' : 'w-1.5 bg-surface-3',
-                    )}
-                    style={active ? { backgroundColor: color } : undefined}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <TurnPlayerCard game={game} showTurnDots />
 
         {game.activePersistentRules.length > 0 && (
           <CollapsibleSection
@@ -258,11 +246,26 @@ export function GamePage() {
               <Sparkles size={18} />
               Spéciale
             </Button>
-            <Button variant="secondary" onClick={() => nextPlayer()}>
+            <Button
+              variant="secondary"
+              onClick={() => nextPlayer()}
+              className={clsx(
+                suggestNext && flowHighlight,
+                suggestDraw && flowMuted,
+              )}
+            >
               Suivant
             </Button>
           </div>
-          <Button fullWidth onClick={handleDraw}>
+          <Button
+            fullWidth
+            onClick={handleDraw}
+            className={clsx(
+              suggestDraw &&
+                'shadow-[0_0_20px_rgba(168,85,247,0.4)] ring-2 ring-accent/35',
+              suggestNext && 'opacity-45 hover:opacity-65',
+            )}
+          >
             Piocher une règle
           </Button>
         </div>

@@ -4,6 +4,7 @@ import { MigrateLocalListsDialog } from './components/MigrateLocalListsDialog';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
 import { GamePage } from './pages/GamePage';
+import { WatchPage } from './pages/WatchPage';
 import { GameSettingsPage } from './pages/GameSettingsPage';
 import { GameSetupPage } from './pages/GameSetupPage';
 import { HomePage } from './pages/HomePage';
@@ -73,6 +74,8 @@ export default function App() {
           <Route path="/setup" element={<GameSetupPage />} />
           <Route path="/game" element={<GamePage />} />
           <Route path="/game/settings" element={<GameSettingsPage />} />
+          <Route path="/watch" element={<WatchPage />} />
+          <Route path="/watch/:code" element={<WatchPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HydrationGate>

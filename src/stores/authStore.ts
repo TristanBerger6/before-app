@@ -2,7 +2,8 @@ import type { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { EMAIL_OTP_LENGTH } from '../lib/authConfig';
 import { translateAuthError } from '../lib/authErrors';
-import { getAuthRedirectUrl, getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { buildAuthCallbackUrl } from '../lib/authRedirect';
+import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 
 function normalizeAuthEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -23,7 +24,10 @@ interface AuthStore {
     email: string,
     token: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
-  signInWithGoogle: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  signInWithGoogle: (options?: {
+    next?: string;
+    openFeedback?: boolean;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
 }
@@ -138,7 +142,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     }
   },
 
-  async signInWithGoogle() {
+  async signInWithGoogle(options) {
     if (!isSupabaseConfigured()) {
       return { ok: false, error: 'Supabase non configuré sur cet environnement.' };
     }
@@ -148,7 +152,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: getAuthRedirectUrl(),
+          redirectTo: buildAuthCallbackUrl(
+            options?.next ?? '/',
+            options?.openFeedback ?? false,
+          ),
         },
       });
 

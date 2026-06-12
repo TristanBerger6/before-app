@@ -1,4 +1,4 @@
-import { Cloud, Layers, LogOut, Play, Sparkles, User } from 'lucide-react';
+import { Cloud, Eye, Layers, LogOut, Play, Sparkles, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
@@ -51,6 +51,12 @@ export function HomePage() {
             <Layers size={18} />
             Mes listes de règles
           </Button>
+          {authEnabled && (
+            <Button fullWidth variant="secondary" onClick={() => navigate('/watch')}>
+              <Eye size={18} />
+              Suivre une partie
+            </Button>
+          )}
 
           {authEnabled && (
             user ? (

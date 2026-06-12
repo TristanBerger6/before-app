@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { resolvePostAuthPath } from '../lib/authRedirect';
 import { translateAuthError } from '../lib/authErrors';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAppStore } from '../stores/appStore';
@@ -7,6 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,9 +50,15 @@ export function AuthCallbackPage() {
         await useAppStore.getState().handleAuthChange(user);
       }
 
-      navigate('/', { replace: true });
+      navigate(
+        resolvePostAuthPath(
+          searchParams.get('next'),
+          searchParams.get('feedback') === '1',
+        ),
+        { replace: true },
+      );
     })();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   return (
     <div className="min-h-dvh bg-app flex items-center justify-center px-4">
