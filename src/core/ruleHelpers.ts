@@ -14,6 +14,34 @@ export function isEveryonePersistent(rule: Rule): boolean {
   return rule.type === 'persistent' && getPersistentScope(rule) === 'everyone';
 }
 
+export function isUnlimitedPersistent(rule: Rule): boolean {
+  return rule.type === 'persistent' && rule.durationType === 'unlimited';
+}
+
+export function formatActivePersistentMeta(
+  rule: Rule,
+  remainingTours: number | null,
+): string | undefined {
+  if (rule.showRemainingTurns === false) return undefined;
+  if (remainingTours === null || isUnlimitedPersistent(rule)) return '∞';
+  return `${remainingTours} tour${remainingTours > 1 ? 's' : ''}`;
+}
+
+/** Badge compact pour la liste d'édition d'une règle persistante. */
+export function formatPersistentDurationBadge(rule: Rule): string | undefined {
+  if (rule.type !== 'persistent') return undefined;
+  if (isUnlimitedPersistent(rule)) return '∞';
+  if (typeof rule.duration === 'object') {
+    const { min, max } = rule.duration;
+    if (min === max) {
+      return `${min} tour${min > 1 ? 's' : ''}`;
+    }
+    return `${min}–${max} tours`;
+  }
+  const tours = typeof rule.duration === 'number' ? rule.duration : 1;
+  return `${tours} tour${tours > 1 ? 's' : ''}`;
+}
+
 export function countDrawnCopies(drawnIds: string[], ruleId: string): number {
   return drawnIds.filter((id) => id === ruleId).length;
 }

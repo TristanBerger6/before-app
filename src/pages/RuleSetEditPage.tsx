@@ -1,16 +1,23 @@
 import { Plus, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { readEditNavState } from '../core/editNavigation';
 import { createId } from '../core/ids';
 import {
   DEFAULT_EXHAUSTIVE_SIMPLE_RULES,
   DEFAULT_PERSISTENT_DRAW_CHANCE,
   DEFAULT_SPECIAL_TRIGGER_CHANCE,
+  formatPersistentDurationBadge,
   getRuleCopies,
   getSimpleDeckSize,
   hasPersistentRules,
   hasSpecialRules,
 } from '../core/ruleHelpers';
+import {
+  readRuleSetSectionState,
+  writeRuleSetSectionState,
+  type RuleSetSectionKey,
+} from '../core/ruleSetEditUi';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { RuleListItem } from '../components/RuleListItem';
 import { AppShell } from '../components/layout/AppShell';
@@ -34,7 +41,7 @@ function getTypeHelp(type: RuleType, ruleSet: RuleSet): string {
       return 'Tirée avec « Piocher une règle ». Effet immédiat, sans durée. Vous pouvez mettre plusieurs exemplaires d\'une même règle.';
     case 'persistent': {
       const chance = ruleSet.persistentDrawChance ?? DEFAULT_PERSISTENT_DRAW_CHANCE;
-      return `${chance} % de chance d'être piochée à chaque tirage. Reste active plusieurs tours, pour celui qui pioche ou pour tout le monde.`;
+      return `${chance} % de chance d'être piochée à chaque tirage. Durée en tours ou illimitée (∞), pour celui qui pioche ou pour tout le monde.`;
     }
     case 'special': {
       const chance = ruleSet.specialTriggerChance ?? 0;
@@ -72,28 +79,44 @@ export function RuleSetEditPage() {
   const isNew = id === 'new';
   const location = useLocation();
   const navigate = useNavigate();
-  const { getRuleSet, saveRuleSet } = useAppStore();
+  const { getRuleSet, saveRuleSet, game } = useAppStore();
+  const { returnTo } = readEditNavState(location.state, '/sets');
 
   const [ruleSet, setRuleSet] = useState<RuleSet>(() =>
     loadRuleSetFromStore(isNew, id, getRuleSet),
   );
   const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sectionOpen, setSectionOpen] = useState<
+    Partial<Record<RuleSetSectionKey, boolean>>
+  >(() => readRuleSetSectionState(ruleSet.id));
+
+  const isSectionOpen = (key: RuleSetSectionKey, fallback: boolean) =>
+    sectionOpen[key] ?? fallback;
+
+  const handleSectionOpenChange = (key: RuleSetSectionKey, open: boolean) => {
+    setSectionOpen((prev) => {
+      const next = { ...prev, [key]: open };
+      writeRuleSetSectionState(ruleSet.id, next);
+      return next;
+    });
+  };
 
   // Recharge au retour depuis l'édition d'une règle (sans flash du toggle)
   useEffect(() => {
     if (!isNew && id) {
       setRuleSet(loadRuleSetFromStore(false, id, getRuleSet));
+      setSectionOpen(readRuleSetSectionState(id));
     }
   }, [location.key, id, isNew, getRuleSet]);
 
   const handleSave = async () => {
     if (!ruleSet.name.trim()) {
-      setError('Le nom du set est requis');
+      setError('Le nom de la liste est requis');
       return;
     }
     await saveRuleSet(ruleSet);
-    navigate('/sets');
+    navigate(returnTo);
   };
 
   const removeRule = (ruleId: string) => {
@@ -110,12 +133,25 @@ export function RuleSetEditPage() {
   const storedPersistentChance =
     ruleSet.persistentDrawChance ?? DEFAULT_PERSISTENT_DRAW_CHANCE;
   const persistentRulesAvailable = hasPersistentRules(ruleSet);
+  const editingDuringGame =
+    !isNew && game.isActive && game.selectedRuleSetId === ruleSet.id;
 
   return (
-    <AppShell title={isNew ? 'Nouveau set' : 'Modifier le set'} showBack backTo="/sets">
+    <AppShell
+      title={isNew ? 'Nouvelle liste' : 'Modifier la liste'}
+      showBack
+      backTo={returnTo}
+    >
       <div className="flex flex-col gap-6 pb-28">
+        {editingDuringGame && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-muted leading-relaxed">
+            Partie en cours : les règles supprimées ou modifiées quittent la
+            partie. Changer l&apos;option «&nbsp;chaque règle simple ne sort
+            qu&apos;une fois&nbsp;» remélange le deck simple.
+          </div>
+        )}
         <Input
-          label="Nom du set"
+          label="Nom de la liste"
           value={ruleSet.name}
           onChange={(e) => setRuleSet((p) => ({ ...p, name: e.target.value }))}
           placeholder="Ex : Soirée classique"
@@ -124,12 +160,13 @@ export function RuleSetEditPage() {
         <CollapsibleSection
           title="Paramètres"
           icon={<Settings size={18} />}
-          defaultOpen={false}
+          open={isSectionOpen('settings', false)}
+          onOpenChange={(open) => handleSectionOpenChange('settings', open)}
           scrollable={false}
         >
           <Switch
-            label="Règles simples exhaustives"
-            description="Chaque règle simple piochée est défaussée. Quand il n'en reste plus à piocher, le cycle recommence."
+            label="Chaque règle simple ne sort qu'une fois"
+            description="Quand toutes les règles simples ont été piochées, on remélange."
             checked={!!ruleSet.exhaustiveSimpleRules}
             onChange={(v) => setRuleSet((p) => ({ ...p, exhaustiveSimpleRules: v }))}
           />
@@ -192,7 +229,8 @@ export function RuleSetEditPage() {
                       ? getSimpleDeckSize(rules)
                       : rules.length
                   }
-                  defaultOpen={defaultOpen}
+                  open={isSectionOpen(type, defaultOpen)}
+                  onOpenChange={(open) => handleSectionOpenChange(type, open)}
                   maxHeight={rules.length > 8 ? '12rem' : '16rem'}
                 >
                   {rules.map((rule: Rule) => (
@@ -200,12 +238,24 @@ export function RuleSetEditPage() {
                       key={rule.id}
                       title={rule.title}
                       copies={type === 'simple' ? getRuleCopies(rule) : undefined}
+                      durationBadge={
+                        type === 'persistent'
+                          ? formatPersistentDurationBadge(rule)
+                          : undefined
+                      }
                       persistentScope={
                         type === 'persistent'
                           ? (rule.persistentScope ?? 'drawer')
                           : undefined
                       }
-                      onClick={() => navigate(`/sets/${ruleSet.id}/rules/${rule.id}`)}
+                      onClick={() =>
+                        navigate(`/sets/${ruleSet.id}/rules/${rule.id}`, {
+                          state: {
+                            returnTo: `/sets/${ruleSet.id}`,
+                            listReturnTo: returnTo,
+                          },
+                        })
+                      }
                       onDelete={() => setDeleteRuleId(rule.id)}
                       deleteLabel={`Supprimer ${rule.title}`}
                     />
@@ -216,11 +266,16 @@ export function RuleSetEditPage() {
                 type="button"
                 onClick={async () => {
                   if (!ruleSet.name.trim()) {
-                    setError('Donnez un nom au set avant d\'ajouter des règles');
+                    setError('Donnez un nom à la liste avant d\'ajouter des règles');
                     return;
                   }
                   await saveRuleSet(ruleSet);
-                  navigate(`/sets/${ruleSet.id}/rules/new?type=${type}`);
+                  navigate(`/sets/${ruleSet.id}/rules/new?type=${type}`, {
+                    state: {
+                      returnTo: `/sets/${ruleSet.id}`,
+                      listReturnTo: returnTo,
+                    },
+                  });
                 }}
                 className="inline-flex items-center gap-1.5 self-start px-2 py-1.5 text-sm font-medium text-muted hover:text-accent transition-colors duration-200 cursor-pointer"
               >
@@ -243,7 +298,7 @@ export function RuleSetEditPage() {
       <ConfirmDialog
         open={!!deleteRuleId}
         title="Supprimer la règle"
-        message="Cette règle sera retirée du set."
+        message="Cette règle sera retirée de la liste."
         confirmLabel="Supprimer"
         destructive
         onConfirm={() => deleteRuleId && removeRule(deleteRuleId)}

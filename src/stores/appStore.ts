@@ -1,5 +1,7 @@
+import type { User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { createId } from '../core/ids';
+import { mergeRuleLists } from '../core/ruleListMerge';
 import {
   addPlayer,
   drawRule,
@@ -15,16 +17,37 @@ import {
   startGame,
 } from '../core/gameEngine';
 import { downloadRuleSet, parseRuleSetFile } from '../core/ruleSetIO';
-import { localStorageAdapter } from '../storage/localStorage';
+import {
+  diffRuleSetChanges,
+  isGameUsingRuleSet,
+  reconcileGameState,
+} from '../core/ruleSetReconcile';
+import { isSupabaseConfigured } from '../lib/supabase';
+import {
+  deleteCloudRuleList,
+  fetchCloudRuleLists,
+  replaceCloudRuleLists,
+  upsertCloudRuleList,
+} from '../storage/cloudRuleLists';
+import {
+  clearLocalRuleSets,
+  loadLocalRuleSets,
+  localStorageAdapter,
+  saveGameToLocal,
+} from '../storage/localStorage';
 import type { AppData, GameState, Player, Rule, RuleSet } from '../types';
+import { useAuthStore } from './authStore';
 
 interface AppStore {
   ruleSets: RuleSet[];
   game: GameState;
   isHydrated: boolean;
+  pendingLocalMerge: RuleSet[] | null;
 
   hydrate: () => Promise<void>;
-  persist: () => Promise<void>;
+  handleAuthChange: (user: User | null) => Promise<void>;
+  confirmLocalMerge: (merge: boolean) => Promise<void>;
+  dismissLocalMerge: () => void;
 
   getRuleSet: (id: string) => RuleSet | undefined;
   saveRuleSet: (ruleSet: RuleSet) => Promise<void>;
@@ -48,7 +71,17 @@ interface AppStore {
   importRuleSet: (file: File) => Promise<RuleSet>;
 }
 
-async function saveAll(ruleSets: RuleSet[], game: GameState) {
+function getActiveUser(): User | null {
+  return useAuthStore.getState().user;
+}
+
+async function persistGame(game: GameState): Promise<void> {
+  await saveGameToLocal(
+    game.isActive || game.nextRoundPlayers.length > 0 ? game : null,
+  );
+}
+
+async function persistGuestRuleSets(ruleSets: RuleSet[], game: GameState): Promise<void> {
   const data: AppData = {
     ruleSets,
     game:
@@ -57,23 +90,89 @@ async function saveAll(ruleSets: RuleSet[], game: GameState) {
   await localStorageAdapter.save(data);
 }
 
+async function loadRuleSetsForUser(user: User | null): Promise<{
+  ruleSets: RuleSet[];
+  pendingLocalMerge: RuleSet[] | null;
+}> {
+  if (!user || !isSupabaseConfigured()) {
+    const local = await loadLocalRuleSets();
+    return { ruleSets: local, pendingLocalMerge: null };
+  }
+
+  const [cloud, local] = await Promise.all([
+    fetchCloudRuleLists(user.id),
+    loadLocalRuleSets(),
+  ]);
+
+  if (local.length > 0) {
+    return { ruleSets: cloud, pendingLocalMerge: local };
+  }
+
+  return { ruleSets: cloud, pendingLocalMerge: null };
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   ruleSets: [],
   game: { ...initialGameState },
   isHydrated: false,
+  pendingLocalMerge: null,
 
   async hydrate() {
     const data = await localStorageAdapter.load();
+    const user = getActiveUser();
+    const { ruleSets, pendingLocalMerge } = await loadRuleSetsForUser(user);
+
     set({
-      ruleSets: data.ruleSets,
+      ruleSets: user && isSupabaseConfigured() ? ruleSets : data.ruleSets,
+      pendingLocalMerge,
       game: data.game ? normalizeGameState(data.game) : { ...initialGameState },
       isHydrated: true,
     });
   },
 
-  async persist() {
-    const { ruleSets, game } = get();
-    await saveAll(ruleSets, game);
+  async handleAuthChange(user) {
+    const { game } = get();
+    const { ruleSets, pendingLocalMerge } = await loadRuleSetsForUser(user);
+
+    if (!user) {
+      const local = await loadLocalRuleSets();
+      set({ ruleSets: local, pendingLocalMerge: null });
+      await persistGuestRuleSets(local, game);
+      return;
+    }
+
+    set({ ruleSets, pendingLocalMerge });
+
+    if (!pendingLocalMerge) {
+      await clearLocalRuleSets();
+    }
+  },
+
+  async confirmLocalMerge(merge) {
+    const user = getActiveUser();
+    if (!user || !isSupabaseConfigured()) {
+      set({ pendingLocalMerge: null });
+      return;
+    }
+
+    const { ruleSets, pendingLocalMerge } = get();
+    if (!pendingLocalMerge?.length) {
+      set({ pendingLocalMerge: null });
+      return;
+    }
+
+    const next = merge
+      ? mergeRuleLists(ruleSets, pendingLocalMerge)
+      : ruleSets;
+
+    await replaceCloudRuleLists(user.id, next);
+    await clearLocalRuleSets();
+    set({ ruleSets: next, pendingLocalMerge: null });
+  },
+
+  dismissLocalMerge() {
+    void clearLocalRuleSets();
+    set({ pendingLocalMerge: null });
   },
 
   getRuleSet(id) {
@@ -81,50 +180,77 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   async saveRuleSet(ruleSet) {
-    const { ruleSets } = get();
+    const user = getActiveUser();
+    const { ruleSets, game } = get();
     const index = ruleSets.findIndex((rs) => rs.id === ruleSet.id);
+    const prev = index >= 0 ? ruleSets[index] : undefined;
+    const saved =
+      index >= 0 ? ruleSet : { ...ruleSet, id: ruleSet.id || createId() };
     const next =
       index >= 0
-        ? ruleSets.map((rs, i) => (i === index ? ruleSet : rs))
-        : [...ruleSets, { ...ruleSet, id: ruleSet.id || createId() }];
-    set({ ruleSets: next });
-    await get().persist();
+        ? ruleSets.map((rs, i) => (i === index ? saved : rs))
+        : [...ruleSets, saved];
+
+    let nextGame = game;
+    if (prev && isGameUsingRuleSet(game, saved.id)) {
+      const diff = diffRuleSetChanges(prev, saved);
+      nextGame = reconcileGameState(game, saved, diff);
+    }
+
+    set({ ruleSets: next, game: nextGame });
+
+    if (nextGame !== game) {
+      await persistGame(nextGame);
+    }
+
+    if (user && isSupabaseConfigured()) {
+      await upsertCloudRuleList(user.id, saved);
+    } else {
+      await persistGuestRuleSets(next, nextGame);
+    }
   },
 
   async deleteRuleSet(id) {
-    const next = get().ruleSets.filter((rs) => rs.id !== id);
+    const user = getActiveUser();
+    const { ruleSets, game } = get();
+    const next = ruleSets.filter((rs) => rs.id !== id);
     set({ ruleSets: next });
-    await get().persist();
+
+    if (user && isSupabaseConfigured()) {
+      await deleteCloudRuleList(id);
+    } else {
+      await persistGuestRuleSets(next, game);
+    }
   },
 
   addPlayer(name) {
     const game = addPlayer(get().game, name);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   removePlayer(id) {
     const game = removePlayer(get().game, id);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   reorderPlayers(players) {
     const game = reorderPlayers(get().game, players);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   selectRuleSet(id) {
     const game = selectRuleSet(get().game, id);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   startGame() {
     const game = startGame(get().game);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   drawRule() {
@@ -135,11 +261,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const result = drawRule(ruleSet, game);
     if (!result.ok) {
       if (result.state) set({ game: result.state });
-      void get().persist();
+      void persistGame(result.state ?? game);
       return result;
     }
     set({ game: result.state });
-    void get().persist();
+    void persistGame(result.state);
     if ('kind' in result) {
       return { ok: true, kind: 'special_event' as const };
     }
@@ -153,25 +279,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const result = drawSpecialRule(ruleSet, game);
     if (!result.ok) return result;
     set({ game: result.state });
-    void get().persist();
+    void persistGame(result.state);
     return { ok: true, rule: result.rule };
   },
 
   nextPlayer() {
     const game = nextPlayer(get().game);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   resetGame() {
-    set({ game: resetGame() });
-    void get().persist();
+    const game = resetGame();
+    set({ game });
+    void persistGame(game);
   },
 
   resetRound() {
     const game = resetRound(get().game);
     set({ game });
-    void get().persist();
+    void persistGame(game);
   },
 
   exportRuleSet(id) {

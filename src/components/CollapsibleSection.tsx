@@ -8,6 +8,9 @@ interface CollapsibleSectionProps {
   count?: number;
   icon?: ReactNode;
   defaultOpen?: boolean;
+  /** Mode contrôlé : conserve l'état ouvert/fermé entre navigations. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
   className?: string;
   /** Scroll interne si la liste dépasse cette hauteur (ex. "16rem") */
@@ -22,19 +25,28 @@ export function CollapsibleSection({
   count,
   icon,
   defaultOpen = true,
+  open: controlledOpen,
+  onOpenChange,
   children,
   className,
   maxHeight = '14rem',
   scrollable = true,
 }: CollapsibleSectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
   const panelId = useId();
+
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   return (
     <section className={clsx('rounded-2xl border border-border/80 bg-surface-1/90 overflow-hidden backdrop-blur-sm', className)}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={panelId}
         className="flex w-full items-start justify-between gap-3 px-4 py-3.5 text-left cursor-pointer hover:bg-surface-2 transition-colors duration-200"

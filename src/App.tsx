@@ -1,5 +1,8 @@
 import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { MigrateLocalListsDialog } from './components/MigrateLocalListsDialog';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { AuthPage } from './pages/AuthPage';
 import { GamePage } from './pages/GamePage';
 import { GameSettingsPage } from './pages/GameSettingsPage';
 import { GameSetupPage } from './pages/GameSetupPage';
@@ -8,15 +11,39 @@ import { RuleEditPage } from './pages/RuleEditPage';
 import { RuleSetEditPage } from './pages/RuleSetEditPage';
 import { RuleSetListPage } from './pages/RuleSetListPage';
 import { useAppStore } from './stores/appStore';
+import { useAuthStore } from './stores/authStore';
 
 function HydrationGate({ children }: { children: ReactNode }) {
-  const { isHydrated, hydrate } = useAppStore();
+  const isHydrated = useAppStore((s) => s.isHydrated);
+  const isAuthReady = useAuthStore((s) => s.isAuthReady);
+  const hydrate = useAppStore((s) => s.hydrate);
+  const initializeAuth = useAuthStore((s) => s.initialize);
+  const handleAuthChange = useAppStore((s) => s.handleAuthChange);
 
   useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
+    void (async () => {
+      await initializeAuth();
+      await hydrate();
+    })();
+  }, [hydrate, initializeAuth]);
 
-  if (!isHydrated) {
+  useEffect(() => {
+    if (!isAuthReady || !isHydrated) return;
+
+    let prevUserId = useAuthStore.getState().user?.id ?? null;
+
+    const unsub = useAuthStore.subscribe((state) => {
+      const nextUserId = state.user?.id ?? null;
+      if (nextUserId !== prevUserId) {
+        prevUserId = nextUserId;
+        void handleAuthChange(state.user);
+      }
+    });
+
+    return unsub;
+  }, [isAuthReady, isHydrated, handleAuthChange]);
+
+  if (!isHydrated || !isAuthReady) {
     return (
       <div className="min-h-dvh bg-background flex items-center justify-center">
         <p className="text-muted text-sm">Chargement...</p>
@@ -24,7 +51,12 @@ function HydrationGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <MigrateLocalListsDialog />
+    </>
+  );
 }
 
 export default function App() {
@@ -33,6 +65,8 @@ export default function App() {
       <HydrationGate>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/sets" element={<RuleSetListPage />} />
           <Route path="/sets/:id" element={<RuleSetEditPage />} />
           <Route path="/sets/:setId/rules/:ruleId" element={<RuleEditPage />} />

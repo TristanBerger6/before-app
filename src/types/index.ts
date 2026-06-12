@@ -3,7 +3,7 @@ export type RuleType = 'simple' | 'persistent' | 'special';
 /** Portée d'une règle persistante active. */
 export type PersistentScope = 'drawer' | 'everyone';
 
-export type DurationType = 'turns';
+export type DurationType = 'turns' | 'unlimited';
 
 export interface RandomDuration {
   min: number;
@@ -45,8 +45,8 @@ export interface ActivePersistentRule {
   rule: Rule;
   /** null = règle globale (tout le monde). */
   playerId: string | null;
-  /** Tours globaux restants (1 tour = tous les joueurs ont joué). */
-  remainingTours: number;
+  /** Tours globaux restants ; null = illimitée. */
+  remainingTours: number | null;
   /** false tant que le titulaire n'a pas passé une première fois après l'activation. */
   awaitingFirstPass: boolean;
 }

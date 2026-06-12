@@ -1,12 +1,18 @@
-import { Layers, Play, Sparkles } from 'lucide-react';
+import { Cloud, Layers, LogOut, Play, Sparkles, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { useAppStore } from '../stores/appStore';
+import { useAuthStore } from '../stores/authStore';
 
 export function HomePage() {
   const navigate = useNavigate();
   const { game, resetGame } = useAppStore();
+  const { user, signOut } = useAuthStore();
+  const authEnabled = isSupabaseConfigured();
+
+  const email = user?.email ?? user?.user_metadata?.full_name;
 
   return (
     <AppShell className="flex flex-col justify-center min-h-[85dvh] py-8">
@@ -19,9 +25,8 @@ export function HomePage() {
             <h1 className="font-display text-5xl sm:text-6xl text-foreground tracking-tight">
               Before
             </h1>
-            <p className="text-muted mt-3 text-base leading-relaxed max-w-xs mx-auto">
-              Le jeu qu&apos;on lance avant de sortir. Créez vos règles, passez le
-              tel, et c&apos;est parti.
+            <p className="text-muted mt-3 text-base leading-relaxed max-w-sm mx-auto">
+              Le jeu qu&apos;on lance avant de sortir, ou même après.
             </p>
           </div>
         </div>
@@ -44,8 +49,37 @@ export function HomePage() {
           )}
           <Button fullWidth variant="secondary" onClick={() => navigate('/sets')}>
             <Layers size={18} />
-            Mes sets de règles
+            Mes listes de règles
           </Button>
+
+          {authEnabled && (
+            user ? (
+              <div className="mt-2 pt-4 border-t border-border/80 flex flex-col gap-2">
+                <p className="text-xs text-muted truncate px-1">
+                  <Cloud size={12} className="inline mr-1 -mt-0.5" />
+                  {email}
+                </p>
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onClick={() => void signOut().then(() => navigate('/'))}
+                >
+                  <LogOut size={16} />
+                  Se déconnecter
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                fullWidth
+                onClick={() => navigate('/auth')}
+                className="mt-2"
+              >
+                <User size={16} />
+                Sauvegarder mes listes (connexion)
+              </Button>
+            )
+          )}
         </div>
       </div>
     </AppShell>

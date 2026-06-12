@@ -97,7 +97,7 @@ export function parseRuleSetFile(json: string): RuleSet {
 
   if (legacySets && legacySets.length > 1) {
     throw new Error(
-      'Ce fichier contient plusieurs sets. Exportez un seul set à la fois.',
+      'Ce fichier contient plusieurs listes. Exportez une seule liste à la fois.',
     );
   }
 

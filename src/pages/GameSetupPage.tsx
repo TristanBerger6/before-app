@@ -37,7 +37,7 @@ export function GameSetupPage() {
       return;
     }
     if (!game.selectedRuleSetId) {
-      setError('Sélectionnez un set de règles');
+      setError('Sélectionnez une liste de règles');
       return;
     }
     startGame();
@@ -76,16 +76,16 @@ export function GameSetupPage() {
         </section>
 
         <section>
-          <h2 className="font-display text-lg mb-4">Set de règles</h2>
+          <h2 className="font-display text-lg mb-4">Liste de règles</h2>
           {ruleSets.length === 0 ? (
             <p className="text-sm text-muted">
-              Aucun set disponible.{' '}
+              Aucune liste disponible.{' '}
               <button
                 type="button"
                 onClick={() => navigate('/sets')}
                 className="text-accent underline cursor-pointer"
               >
-                Créer un set
+                Créer une liste
               </button>
             </p>
           ) : (

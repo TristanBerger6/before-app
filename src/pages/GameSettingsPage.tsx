@@ -1,3 +1,4 @@
+import { Layers } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
@@ -10,7 +11,8 @@ import type { Player } from '../types';
 
 export function GameSettingsPage() {
   const navigate = useNavigate();
-  const { game, addPlayer, removePlayer, reorderPlayers } = useAppStore();
+  const { game, ruleSets, addPlayer, removePlayer, reorderPlayers } = useAppStore();
+  const activeRuleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
 
   const [playerName, setPlayerName] = useState('');
   const [deletePlayer, setDeletePlayer] = useState<Player | null>(null);
@@ -45,14 +47,13 @@ export function GameSettingsPage() {
   return (
     <AppShell title="Paramètres" showBack backTo="/game">
       <div className="flex flex-col gap-6 pb-8">
-        <p className="text-sm text-muted leading-relaxed">
-          Les modifications s'appliquent au{' '}
-          <span className="text-foreground font-medium">prochain tour</span>{' '}
-          (quand tous les joueurs auront rejoué une fois).
-        </p>
-
         <section>
-          <h2 className="font-display text-lg mb-4">Joueurs — à partir du prochain tour</h2>
+          <h2 className="font-display text-lg mb-2">Joueurs</h2>
+          <p className="text-sm text-muted leading-relaxed mb-4">
+            Les modifications s&apos;appliquent au{' '}
+            <span className="text-foreground font-medium">prochain tour</span>{' '}
+            (quand tous les joueurs auront rejoué une fois).
+          </p>
           <div className="flex gap-2 mb-4">
             <div className="flex-1">
               <Input
@@ -72,6 +73,28 @@ export function GameSettingsPage() {
             onRemove={handleRemove}
           />
         </section>
+
+        {game.selectedRuleSetId && activeRuleSet && (
+          <section>
+            <h2 className="font-display text-lg mb-3">Liste de règles</h2>
+            <p className="text-sm text-muted leading-relaxed mb-3">
+              Ajoutez, modifiez ou supprimez des règles pendant la partie. Les
+              changements s&apos;appliquent immédiatement au tirage.
+            </p>
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() =>
+                navigate(`/sets/${game.selectedRuleSetId}`, {
+                  state: { returnTo: '/game' },
+                })
+              }
+            >
+              <Layers size={18} />
+              Modifier « {activeRuleSet.name} »
+            </Button>
+          </section>
+        )}
 
         <section>
           <h2 className="font-display text-lg mb-3">Tour actuel</h2>

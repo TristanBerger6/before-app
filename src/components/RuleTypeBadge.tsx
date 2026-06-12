@@ -26,21 +26,37 @@ const config: Record<
 interface RuleTypeBadgeProps {
   type: RuleType;
   size?: 'sm' | 'md';
+  /** Icône seule (modale de pioche, listes denses). */
+  iconOnly?: boolean;
+  className?: string;
 }
 
-export function RuleTypeBadge({ type, size = 'md' }: RuleTypeBadgeProps) {
-  const { label, icon: Icon, className } = config[type];
+export function RuleTypeBadge({
+  type,
+  size = 'md',
+  iconOnly = false,
+  className,
+}: RuleTypeBadgeProps) {
+  const { label, icon: Icon, className: typeClassName } = config[type];
+  const compact = iconOnly || size === 'sm';
 
   return (
     <span
       className={clsx(
-        'inline-flex items-center gap-1.5 rounded-full border font-semibold',
-        size === 'sm' ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-sm',
+        'inline-flex items-center rounded-full border font-semibold shrink-0',
+        iconOnly
+          ? 'p-1'
+          : compact
+            ? 'gap-1 px-2 py-0.5 text-[10px]'
+            : 'gap-1.5 px-3 py-1 text-sm',
+        typeClassName,
         className,
       )}
+      aria-label={iconOnly ? `Règle ${label.toLowerCase()}` : undefined}
+      title={iconOnly ? label : undefined}
     >
-      <Icon size={size === 'sm' ? 12 : 14} />
-      {label}
+      <Icon size={iconOnly ? 11 : compact ? 11 : 14} />
+      {!iconOnly && label}
     </span>
   );
 }

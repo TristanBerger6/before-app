@@ -8,6 +8,8 @@ interface AppShellProps {
   title?: string;
   showBack?: boolean;
   backTo?: string;
+  /** Prioritaire sur backTo (navigation avec état router). */
+  onBack?: () => void;
   headerRight?: ReactNode;
   className?: string;
 }
@@ -17,13 +19,15 @@ export function AppShell({
   title,
   showBack,
   backTo,
+  onBack,
   headerRight,
   className,
 }: AppShellProps) {
   const navigate = useNavigate();
 
   const handleBack = () => {
-    if (backTo) navigate(backTo);
+    if (onBack) onBack();
+    else if (backTo) navigate(backTo);
     else navigate(-1);
   };
 

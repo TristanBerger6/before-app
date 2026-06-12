@@ -5,11 +5,15 @@ import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { useAppStore } from '../stores/appStore';
+import { useAuthStore } from '../stores/authStore';
 
 export function RuleSetListPage() {
   const navigate = useNavigate();
   const { ruleSets, deleteRuleSet, exportRuleSet, importRuleSet } = useAppStore();
+  const user = useAuthStore((s) => s.user);
+  const showGuestBanner = isSupabaseConfigured() && !user;
   const fileRef = useRef<HTMLInputElement>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -33,7 +37,7 @@ export function RuleSetListPage() {
 
   return (
     <AppShell
-      title="Sets de règles"
+      title="Listes de règles"
       showBack
       backTo="/"
       headerRight={
@@ -48,9 +52,22 @@ export function RuleSetListPage() {
       }
     >
       <div className="flex flex-col gap-3 pb-24">
+        {showGuestBanner && (
+          <div className="rounded-xl border border-border bg-surface-1 px-4 py-3 text-sm text-muted leading-relaxed">
+            Listes enregistrées sur cet appareil uniquement.{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/auth')}
+              className="text-accent underline cursor-pointer"
+            >
+              Connectez-vous
+            </button>{' '}
+            pour les retrouver partout.
+          </div>
+        )}
         {ruleSets.length === 0 ? (
           <p className="text-center text-muted py-12">
-            Aucun set de règles. Créez-en un ou importez-en un pour commencer.
+            Aucune liste de règles. Créez-en une ou importez-en une pour commencer.
           </p>
         ) : (
           ruleSets.map((set) => (
@@ -116,14 +133,14 @@ export function RuleSetListPage() {
         <div className="mx-auto max-w-lg">
           <Button fullWidth onClick={() => navigate('/sets/new')}>
             <Plus size={18} />
-            Nouveau set
+            Nouvelle liste
           </Button>
         </div>
       </div>
 
       <ConfirmDialog
         open={!!deleteId}
-        title="Supprimer le set"
+        title="Supprimer la liste"
         message="Cette action est irréversible."
         confirmLabel="Supprimer"
         destructive

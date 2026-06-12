@@ -1,5 +1,5 @@
 import { normalizeGameState } from '../core/gameEngine';
-import type { AppData } from '../types';
+import type { AppData, GameState, RuleSet } from '../types';
 import type { StorageAdapter } from './types';
 
 const STORAGE_KEY = 'before:data';
@@ -33,13 +33,26 @@ function parseStored(raw: string | null): AppData {
   }
 }
 
+function readRaw(): string | null {
+  return (
+    localStorage.getItem(STORAGE_KEY) ??
+    localStorage.getItem(LEGACY_STORAGE_KEY)
+  );
+}
+
+export async function loadLocalRuleSets(): Promise<RuleSet[]> {
+  const data = parseStored(readRaw());
+  return data.ruleSets;
+}
+
+export async function clearLocalRuleSets(): Promise<void> {
+  const data = parseStored(readRaw());
+  await localStorageAdapter.save({ ...data, ruleSets: [] });
+}
+
 export const localStorageAdapter: StorageAdapter = {
   async load() {
-    let raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
-    }
-    return parseStored(raw);
+    return parseStored(readRaw());
   },
 
   async save(data: AppData) {
@@ -48,3 +61,14 @@ export const localStorageAdapter: StorageAdapter = {
     localStorage.removeItem(LEGACY_STORAGE_KEY);
   },
 };
+
+export async function saveGameToLocal(game: GameState | null): Promise<void> {
+  const current = parseStored(readRaw());
+  await localStorageAdapter.save({
+    ruleSets: current.ruleSets,
+    game:
+      game && (game.isActive || game.nextRoundPlayers.length > 0)
+        ? game
+        : null,
+  });
+}

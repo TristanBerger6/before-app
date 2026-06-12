@@ -6,6 +6,7 @@ import {
   getPersistentDrawChance,
   getSpecialTriggerChance,
   isEveryonePersistent,
+  isUnlimitedPersistent,
   isSimpleDeckExhausted,
   pickWeightedRule,
 } from './ruleHelpers';
@@ -86,8 +87,9 @@ export function normalizeGameState(
   };
 }
 
-/** Durée en tours globaux (tous les joueurs ont joué = 1 tour). */
-function resolveDurationTours(rule: Rule): number {
+/** Durée en tours globaux ; null = illimitée. */
+function resolveDurationTours(rule: Rule): number | null {
+  if (isUnlimitedPersistent(rule)) return null;
   if (typeof rule.duration === 'number') {
     return rule.duration;
   }
@@ -95,7 +97,7 @@ function resolveDurationTours(rule: Rule): number {
     const { min, max } = rule.duration as RandomDuration;
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
-  return 0;
+  return 1;
 }
 
 export function addPlayer(state: GameState, name: string): GameState {
@@ -374,6 +376,7 @@ function tickPersistentRules(
 ): ActivePersistentRule[] {
   return rules
     .map((ar) => {
+      if (ar.remainingTours === null) return ar;
       if (ar.playerId === null) {
         if (!tourComplete) return ar;
         if (ar.awaitingFirstPass) {
@@ -387,7 +390,7 @@ function tickPersistentRules(
       }
       return { ...ar, remainingTours: ar.remainingTours - 1 };
     })
-    .filter((ar) => ar.remainingTours > 0);
+    .filter((ar) => ar.remainingTours === null || ar.remainingTours > 0);
 }
 
 export function nextPlayer(state: GameState): GameState {

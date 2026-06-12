@@ -11,6 +11,8 @@ interface RuleListItemProps {
   copies?: number;
   /** Portée persistante : joueur ou tout le monde */
   persistentScope?: PersistentScope;
+  /** Durée persistante (ex. « 3 tours », « ∞ ») */
+  durationBadge?: string;
   onClick?: () => void;
   onDelete?: () => void;
   deleteLabel?: string;
@@ -27,6 +29,7 @@ export function RuleListItem({
   meta,
   copies,
   persistentScope,
+  durationBadge,
   onClick,
   onDelete,
   deleteLabel = 'Supprimer',
@@ -61,19 +64,28 @@ export function RuleListItem({
               ×{copies}
             </span>
           )}
-          {persistentScope && (
-            <span
-              className={clsx(
-                'shrink-0 text-[10px] font-bold rounded-md px-1.5 py-0.5 border',
-                persistentScope === 'everyone'
-                  ? 'text-indigo-300 bg-indigo-500/15 border-indigo-500/30'
-                  : 'text-muted bg-surface-2 border-border',
-              )}
-            >
-              {scopeLabels[persistentScope]}
-            </span>
-          )}
         </div>
+        {(durationBadge || persistentScope) && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {durationBadge && (
+              <span className="shrink-0 text-[10px] font-bold text-amber-200/90 bg-amber-500/15 border border-amber-500/30 rounded-md px-1.5 py-0.5">
+                {durationBadge}
+              </span>
+            )}
+            {persistentScope && (
+              <span
+                className={clsx(
+                  'shrink-0 text-[10px] font-bold rounded-md px-1.5 py-0.5 border',
+                  persistentScope === 'everyone'
+                    ? 'text-indigo-300 bg-indigo-500/15 border-indigo-500/30'
+                    : 'text-muted bg-surface-2 border-border',
+                )}
+              >
+                {scopeLabels[persistentScope]}
+              </span>
+            )}
+          </div>
+        )}
         {subtitle && (
           <p className="text-xs text-muted truncate mt-0.5">{subtitle}</p>
         )}

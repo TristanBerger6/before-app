@@ -14,6 +14,7 @@ import { RuleTypeBadge } from '../components/RuleTypeBadge';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
+import { formatActivePersistentMeta } from '../core/ruleHelpers';
 import { useAppStore } from '../stores/appStore';
 import type { Rule } from '../types';
 
@@ -135,9 +136,8 @@ export function GamePage() {
           <div className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3">
             <Sparkles size={18} className="text-accent shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-accent">Cycle recommencé</p>
-              <p className="text-sm text-muted mt-0.5">
-                Toutes les règles simples ont été tirées. Piochez à nouveau !
+              <p className="text-sm font-semibold text-accent">
+                Toutes les règles simples ont été tirées, on remélange !
               </p>
             </div>
             <button
@@ -235,11 +235,7 @@ export function GamePage() {
                   key={`${ar.rule.id}-${ar.playerId ?? 'all'}`}
                   title={ar.rule.title}
                   subtitle={ar.playerId === null ? 'Tout le monde' : player?.name}
-                  meta={
-                    ar.rule.showRemainingTurns !== false
-                      ? `${ar.remainingTours} tour${ar.remainingTours > 1 ? 's' : ''}`
-                      : undefined
-                  }
+                  meta={formatActivePersistentMeta(ar.rule, ar.remainingTours)}
                   onClick={() => setDrawnRule(ar.rule)}
                 />
               );
@@ -298,9 +294,13 @@ export function GamePage() {
         onClose={() => setDrawnRule(null)}
       >
         {drawnRule && (
-          <div className="flex flex-col gap-4">
-            <RuleTypeBadge type={drawnRule.type} />
-            <p className="text-muted leading-relaxed whitespace-pre-wrap">
+          <div className="flex flex-col gap-3">
+            <p className="text-base text-foreground leading-relaxed whitespace-pre-wrap">
+              <RuleTypeBadge
+                type={drawnRule.type}
+                iconOnly
+                className="inline-flex align-middle mr-2 -mt-0.5"
+              />
               {drawnRule.description}
             </p>
           </div>
@@ -319,7 +319,7 @@ export function GamePage() {
       <ConfirmDialog
         open={confirmResetRound}
         title="Recommencer"
-        message="Recommencer à zéro avec les mêmes joueurs et le même set ? Les règles actives et le tour en cours seront réinitialisés."
+        message="Recommencer à zéro avec les mêmes joueurs et la même liste ? Les règles actives et le tour en cours seront réinitialisés."
         confirmLabel="Recommencer"
         onConfirm={handleResetRound}
         onCancel={() => setConfirmResetRound(false)}
