@@ -10,6 +10,7 @@ import { GameSetupPage } from './pages/GameSetupPage';
 import { HomePage } from './pages/HomePage';
 import { RuleEditPage } from './pages/RuleEditPage';
 import { RuleSetEditPage } from './pages/RuleSetEditPage';
+import { CatalogPage } from './pages/CatalogPage';
 import { RuleSetListPage } from './pages/RuleSetListPage';
 import { useAppStore } from './stores/appStore';
 import { useAuthStore } from './stores/authStore';
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/sets" element={<RuleSetListPage />} />
+          <Route path="/sets/catalog" element={<CatalogPage />} />
           <Route path="/sets/:id" element={<RuleSetEditPage />} />
           <Route path="/sets/:setId/rules/:ruleId" element={<RuleEditPage />} />
           <Route path="/setup" element={<GameSetupPage />} />

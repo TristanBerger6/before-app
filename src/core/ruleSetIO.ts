@@ -42,7 +42,7 @@ function isRuleSet(value: unknown): value is RuleSet {
   );
 }
 
-function cloneWithNewIds(ruleSet: RuleSet): RuleSet {
+export function cloneRuleSetWithNewIds(ruleSet: RuleSet): RuleSet {
   return {
     ...ruleSet,
     id: createId(),
@@ -76,15 +76,15 @@ export function parseRuleSetFile(json: string): RuleSet {
     (obj.type === EXPORT_TYPE || obj.type === LEGACY_EXPORT_TYPE) &&
     isRuleSet(obj.ruleSet)
   ) {
-    return cloneWithNewIds(obj.ruleSet);
+    return cloneRuleSetWithNewIds(obj.ruleSet);
   }
 
   if (isRuleSet(obj.ruleSet)) {
-    return cloneWithNewIds(obj.ruleSet);
+    return cloneRuleSetWithNewIds(obj.ruleSet);
   }
 
   if (isRuleSet(obj)) {
-    return cloneWithNewIds(obj as RuleSet);
+    return cloneRuleSetWithNewIds(obj as RuleSet);
   }
 
   const legacySets =
@@ -92,7 +92,7 @@ export function parseRuleSetFile(json: string): RuleSet {
     (Array.isArray(obj.rulesets) ? obj.rulesets : null);
 
   if (legacySets?.length === 1 && isRuleSet(legacySets[0])) {
-    return cloneWithNewIds(legacySets[0]);
+    return cloneRuleSetWithNewIds(legacySets[0]);
   }
 
   if (legacySets && legacySets.length > 1) {

@@ -39,6 +39,9 @@ Ouvrir [http://localhost:5173](http://localhost:5173).
    - `supabase/migrations/20250612130000_purge_game_sessions_cron.sql`
    - `supabase/migrations/20250612140000_game_sessions_last_drawn_by.sql`
    - `supabase/migrations/20250613120000_feedback.sql`
+   - `supabase/migrations/20250613140000_feedback_notify_trigger.sql`
+   - `supabase/migrations/20250613150000_catalog_lists.sql`
+   - `supabase/migrations/20250613150100_catalog_origin_seed.sql`
 3. **Authentication → Providers** :
    - Email : activer
    - Google : activer et configurer (Client ID Google Cloud)
@@ -77,7 +80,15 @@ L’hôte lance une partie sur son téléphone : un **code à 6 caractères** ap
 - Stockage dans la table `feedback` (dashboard Supabase → **Table Editor**).
 - Limite : **1 message / minute / utilisateur** (côté RPC).
 
-**Notifications email (optionnel)** : non branché par défaut. Voir la section ci-dessous ou consulter les retours dans Supabase.
+**Notifications email (optionnel)** : Edge Function `notify-feedback` + trigger `pg_net` (secrets Resend dans Supabase).
+
+### Catalogue de listes
+
+- Accessible depuis **Mes listes** → **Découvrir le catalogue** (`/sets/catalog`).
+- Lecture publique (invités et connectés) via la table `catalog_lists`.
+- **Ajouter à mes listes** crée une copie éditable dans `rule_lists` (local ou cloud).
+- Pour publier / mettre à jour une liste officielle : éditer le JSON source puis
+  `node scripts/seed-catalog-origin.mjs chemin/vers/export.json` et ré-exécuter le SQL généré dans `supabase/seeds/seed_catalog_origin.sql`.
 
 ## Build
 

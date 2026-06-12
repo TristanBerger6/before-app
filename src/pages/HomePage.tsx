@@ -54,7 +54,7 @@ export function HomePage() {
           {authEnabled && (
             <Button fullWidth variant="secondary" onClick={() => navigate('/watch')}>
               <Eye size={18} />
-              Suivre une partie
+              Rejoindre la partie
             </Button>
           )}
 

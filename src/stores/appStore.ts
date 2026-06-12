@@ -16,7 +16,8 @@ import {
   selectRuleSet,
   startGame,
 } from '../core/gameEngine';
-import { downloadRuleSet, parseRuleSetFile } from '../core/ruleSetIO';
+import { cloneRuleSetWithNewIds, downloadRuleSet, parseRuleSetFile } from '../core/ruleSetIO';
+import { fetchCatalogList } from '../storage/catalogRuleLists';
 import {
   diffRuleSetChanges,
   isGameUsingRuleSet,
@@ -70,6 +71,7 @@ interface AppStore {
 
   exportRuleSet: (id: string) => void;
   importRuleSet: (file: File) => Promise<RuleSet>;
+  addFromCatalog: (catalogId: string) => Promise<RuleSet | null>;
 }
 
 function getActiveUser(): User | null {
@@ -349,6 +351,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
   async importRuleSet(file) {
     const text = await file.text();
     const ruleSet = parseRuleSetFile(text);
+    await get().saveRuleSet(ruleSet);
+    return ruleSet;
+  },
+
+  async addFromCatalog(catalogId) {
+    const entry = await fetchCatalogList(catalogId);
+    if (!entry) return null;
+
+    const ruleSet = cloneRuleSetWithNewIds({
+      ...entry.payload,
+      name: entry.name,
+    });
     await get().saveRuleSet(ruleSet);
     return ruleSet;
   },

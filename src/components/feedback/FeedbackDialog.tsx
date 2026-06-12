@@ -173,6 +173,7 @@ export function FeedbackDialog({
 
         <Textarea
           label="Message"
+          dismissKeyboardOnEnter={false}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Décrivez ce qui s'est passé ou ce que vous aimeriez voir…"

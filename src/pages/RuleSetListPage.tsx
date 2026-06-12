@@ -1,4 +1,4 @@
-import { Download, Plus, Trash2, Upload } from 'lucide-react';
+import { Download, Library, Plus, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
@@ -66,8 +66,11 @@ export function RuleSetListPage() {
           </div>
         )}
         {ruleSets.length === 0 ? (
-          <p className="text-center text-muted py-12">
-            Aucune liste de règles. Créez-en une ou importez-en une pour commencer.
+          <p className="text-center text-muted py-12 leading-relaxed">
+            Aucune liste de règles.
+            {isSupabaseConfigured()
+              ? ' Parcourez le catalogue ou créez votre première liste.'
+              : ' Créez-en une ou importez-en une pour commencer.'}
           </p>
         ) : (
           ruleSets.map((set) => (
@@ -130,7 +133,17 @@ export function RuleSetListPage() {
       />
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
-        <div className="mx-auto max-w-lg">
+        <div className="mx-auto max-w-lg flex flex-col gap-2">
+          {isSupabaseConfigured() && (
+            <Button
+              fullWidth
+              variant="secondary"
+              onClick={() => navigate('/sets/catalog')}
+            >
+              <Library size={18} />
+              Découvrir le catalogue
+            </Button>
+          )}
           <Button fullWidth onClick={() => navigate('/sets/new')}>
             <Plus size={18} />
             Nouvelle liste
