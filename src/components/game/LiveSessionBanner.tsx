@@ -1,4 +1,12 @@
-import { Check, ChevronRight, Copy, Loader2, Radio, RefreshCw } from 'lucide-react';
+import {
+  Check,
+  ChevronRight,
+  Copy,
+  Eye,
+  Loader2,
+  Radio,
+  RefreshCw,
+} from 'lucide-react';
 import { useState } from 'react';
 import { buildWatchUrl } from '../../lib/liveSessionConfig';
 import { isSupabaseConfigured } from '../../lib/supabase';
@@ -8,6 +16,7 @@ import { Modal } from '../ui/Modal';
 
 export function LiveSessionBanner() {
   const credentials = useLiveSessionStore((s) => s.credentials);
+  const viewerCount = useLiveSessionStore((s) => s.viewerCount);
   const isSyncing = useLiveSessionStore((s) => s.isSyncing);
   const sessionError = useLiveSessionStore((s) => s.sessionError);
   const ensureSession = useLiveSessionStore((s) => s.ensureSession);
@@ -97,6 +106,13 @@ export function LiveSessionBanner() {
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse"
           aria-hidden
         />
+        <span
+          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted"
+          aria-label={`${viewerCount} spectateur${viewerCount !== 1 ? 's' : ''}`}
+        >
+          <Eye size={14} />
+          {viewerCount}
+        </span>
         <ChevronRight size={16} className="text-muted shrink-0" />
       </button>
 

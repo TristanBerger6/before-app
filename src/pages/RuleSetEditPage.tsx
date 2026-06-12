@@ -45,7 +45,7 @@ function getTypeHelp(type: RuleType, ruleSet: RuleSet): string {
     }
     case 'special': {
       const chance = ruleSet.specialTriggerChance ?? 0;
-      return `${chance} % de chance de tirer un événement spécial en piochant une règle.`;
+      return `${chance} % de chance d'être tirée directement en piochant une règle.`;
     }
   }
 }
@@ -174,7 +174,7 @@ export function RuleSetEditPage() {
             label="Chance d'événement spécial"
             description={
               specialRulesAvailable
-                ? 'À chaque pioche, probabilité d\'un événement invitant le joueur à utiliser le bouton Spéciale.'
+                ? 'À chaque pioche, probabilité de tirer directement une règle spéciale au hasard.'
                 : storedSpecialChance > 0
                   ? `Réglé à ${storedSpecialChance} % — inactif tant qu'il n'y a pas de règle spéciale.`
                   : 'Ajoutez une règle spéciale pour que ce taux s\'applique en partie.'

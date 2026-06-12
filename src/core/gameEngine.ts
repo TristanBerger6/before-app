@@ -29,7 +29,7 @@ export const initialGameState: GameState = {
   drawnSimpleRules: [],
   totalTurns: 1,
   isActive: false,
-  specialHighlightPlayerId: null,
+  hasDrawnThisTurn: false,
 };
 
 function migrateActiveRule(
@@ -70,7 +70,6 @@ export function normalizeGameState(
       activePersistentRules: (raw.activePersistentRules ?? []).map((ar) =>
         migrateActiveRule(ar as ActivePersistentRule & { remainingTurns?: number }, playerCount),
       ),
-      specialHighlightPlayerId: raw.specialHighlightPlayerId ?? null,
     };
   }
 
@@ -83,7 +82,6 @@ export function normalizeGameState(
     activePersistentRules: (raw.activePersistentRules ?? []).map((ar) =>
       migrateActiveRule(ar as ActivePersistentRule & { remainingTurns?: number }, playerCount),
     ),
-    specialHighlightPlayerId: raw.specialHighlightPlayerId ?? null,
   };
 }
 
@@ -135,7 +133,7 @@ export function selectRuleSet(state: GameState, ruleSetId: string): GameState {
     ...state,
     selectedRuleSetId: ruleSetId,
     drawnSimpleRules: [],
-    specialHighlightPlayerId: null,
+    hasDrawnThisTurn: false,
   };
 }
 
@@ -151,7 +149,7 @@ export function startGame(state: GameState): GameState {
     drawnSimpleRules: [],
     totalTurns: 1,
     isActive: true,
-    specialHighlightPlayerId: null,
+    hasDrawnThisTurn: false,
   };
 }
 
@@ -168,7 +166,7 @@ export function resetRound(state: GameState): GameState {
     drawnSimpleRules: [],
     totalTurns: 1,
     isActive: true,
-    specialHighlightPlayerId: null,
+    hasDrawnThisTurn: false,
   };
 }
 
@@ -223,24 +221,24 @@ function getAvailablePersistentRules(
 
 export type DrawResult =
   | { ok: true; rule: Rule; state: GameState }
-  | { ok: true; kind: 'special_event'; state: GameState }
   | { ok: false; reason: 'no_rules' | 'cycle_reset'; state?: GameState };
 
 function rollSpecialEvent(
   ruleSet: RuleSet,
   state: GameState,
 ): DrawResult | null {
+  const specialRules = ruleSet.rules.filter((r) => r.type === 'special');
+  if (specialRules.length === 0) return null;
+
   const chance = getSpecialTriggerChance(ruleSet);
   if (chance <= 0) return null;
   if (Math.random() >= chance / 100) return null;
 
-  const currentPlayer = state.currentPlayers[state.currentPlayerIndex];
-  if (!currentPlayer) return null;
-
+  const rule = specialRules[Math.floor(Math.random() * specialRules.length)];
   return {
     ok: true,
-    kind: 'special_event',
-    state: { ...state, specialHighlightPlayerId: currentPlayer.id },
+    rule,
+    state: { ...state, hasDrawnThisTurn: true },
   };
 }
 
@@ -313,9 +311,12 @@ function drawSimpleRule(
     state.drawnSimpleRules,
   );
   const rule = pickWeightedRule(available, weights);
-  const newState = ruleSet.exhaustiveSimpleRules
-    ? { ...state, drawnSimpleRules: [...state.drawnSimpleRules, rule.id] }
-    : state;
+  const newState = {
+    ...(ruleSet.exhaustiveSimpleRules
+      ? { ...state, drawnSimpleRules: [...state.drawnSimpleRules, rule.id] }
+      : state),
+    hasDrawnThisTurn: true,
+  };
   return { ok: true, rule, state: newState };
 }
 
@@ -348,20 +349,7 @@ function activatePersistentRule(
   return {
     ...state,
     activePersistentRules: [...withoutExisting, active],
-  };
-}
-
-export function drawSpecialRule(
-  ruleSet: RuleSet,
-  state: GameState,
-): { ok: true; rule: Rule; state: GameState } | { ok: false } {
-  const specialRules = ruleSet.rules.filter((r) => r.type === 'special');
-  if (specialRules.length === 0) return { ok: false };
-  const rule = specialRules[Math.floor(Math.random() * specialRules.length)];
-  return {
-    ok: true,
-    rule,
-    state: { ...state, specialHighlightPlayerId: null },
+    hasDrawnThisTurn: true,
   };
 }
 
@@ -415,7 +403,7 @@ export function nextPlayer(state: GameState): GameState {
       currentPlayerIndex: 0,
       totalTurns: state.totalTurns + 1,
       rulesToReactivateNextRound: [],
-      specialHighlightPlayerId: null,
+      hasDrawnThisTurn: false,
     };
   }
 
@@ -424,7 +412,7 @@ export function nextPlayer(state: GameState): GameState {
     activePersistentRules: updatedPersistent,
     currentPlayerIndex: nextIndex,
     totalTurns: state.totalTurns + 1,
-    specialHighlightPlayerId: null,
+    hasDrawnThisTurn: false,
   };
 }
 

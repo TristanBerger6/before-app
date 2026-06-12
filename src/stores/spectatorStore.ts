@@ -5,6 +5,7 @@ import {
   fetchGameSessionByCode,
   subscribeGameSession,
 } from '../storage/gameSessions';
+import { trackSpectatorPresence } from '../storage/gameSessionPresence';
 import type {
   LiveSessionSnapshot,
   SpectatorConnectionStatus,
@@ -21,6 +22,7 @@ interface SpectatorStore {
 }
 
 let unsubscribeRealtime: (() => void) | null = null;
+let unsubscribePresence: (() => void) | null = null;
 let staleCheckTimer: ReturnType<typeof setInterval> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -39,6 +41,10 @@ function deriveStatus(
 }
 
 function clearTimers() {
+  if (unsubscribePresence) {
+    unsubscribePresence();
+    unsubscribePresence = null;
+  }
   if (unsubscribeRealtime) {
     unsubscribeRealtime();
     unsubscribeRealtime = null;
@@ -133,6 +139,12 @@ export const useSpectatorStore = create<SpectatorStore>((set, get) => ({
         );
       } catch {
         // Realtime indisponible : le polling prend le relais.
+      }
+
+      try {
+        unsubscribePresence = trackSpectatorPresence(fetched.id);
+      } catch {
+        // Presence indisponible : la partie reste lisible via polling.
       }
 
       staleCheckTimer = setInterval(() => {

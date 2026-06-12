@@ -5,7 +5,6 @@ import { mergeRuleLists } from '../core/ruleListMerge';
 import {
   addPlayer,
   drawRule,
-  drawSpecialRule,
   initialGameState,
   nextPlayer,
   normalizeGameState,
@@ -62,9 +61,7 @@ interface AppStore {
   startGame: () => void;
   drawRule: () =>
     | { ok: true; rule: Rule }
-    | { ok: true; kind: 'special_event' }
     | { ok: false; reason: 'no_rules' | 'cycle_reset' };
-  drawSpecialRule: () => { ok: true; rule: Rule } | { ok: false };
   nextPlayer: () => void;
   resetGame: () => void;
   resetRound: () => void;
@@ -269,6 +266,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const game = startGame(get().game);
     set({ game });
     void persistGame(game);
+    useLiveSessionStore.setState({ lastDrawnRule: null, lastDrawnBy: null });
 
     const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
     if (ruleSet) {
@@ -291,26 +289,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       void persistGame(result.state ?? game);
       return result;
     }
-    set({ game: result.state });
-    void persistGame(result.state);
-    if ('kind' in result) {
-      void useLiveSessionStore.getState().pushState(result.state);
-      return { ok: true, kind: 'special_event' as const };
-    }
-    void useLiveSessionStore.getState().pushState(result.state, {
-      lastDrawnRule: result.rule,
-      lastDrawnBy: drawer,
-    });
-    return { ok: true, rule: result.rule };
-  },
-
-  drawSpecialRule() {
-    const { game, ruleSets } = get();
-    const drawer = game.currentPlayers[game.currentPlayerIndex];
-    const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
-    if (!ruleSet) return { ok: false };
-    const result = drawSpecialRule(ruleSet, game);
-    if (!result.ok) return result;
     set({ game: result.state });
     void persistGame(result.state);
     void useLiveSessionStore.getState().pushState(result.state, {

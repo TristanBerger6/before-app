@@ -9,11 +9,15 @@ import {
   endGameSession,
   syncGameSession,
 } from '../storage/gameSessions';
+import { watchSpectatorPresence } from '../storage/gameSessionPresence';
 import type { GameState, Player, Rule, RuleSet } from '../types';
 import type { LiveSessionCredentials } from '../types/liveSession';
 
 interface LiveSessionHostStore {
   credentials: LiveSessionCredentials | null;
+  lastDrawnRule: Rule | null;
+  lastDrawnBy: Player | null;
+  viewerCount: number;
   isSyncing: boolean;
   sessionError: string | null;
 
@@ -33,6 +37,31 @@ interface LiveSessionHostStore {
 }
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let stopPresenceWatch: (() => void) | null = null;
+let presenceSessionId: string | null = null;
+
+function startPresenceWatch(
+  sessionId: string,
+  onCount: (count: number) => void,
+): void {
+  if (presenceSessionId === sessionId && stopPresenceWatch) return;
+
+  if (stopPresenceWatch) {
+    stopPresenceWatch();
+    stopPresenceWatch = null;
+  }
+
+  presenceSessionId = sessionId;
+  stopPresenceWatch = watchSpectatorPresence(sessionId, onCount);
+}
+
+function clearPresenceWatch(): void {
+  if (stopPresenceWatch) {
+    stopPresenceWatch();
+    stopPresenceWatch = null;
+  }
+  presenceSessionId = null;
+}
 
 function persistCredentials(credentials: LiveSessionCredentials | null): void {
   if (!credentials) {
@@ -65,6 +94,9 @@ async function createAndPersistSession(
 
 export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
   credentials: null,
+  lastDrawnRule: null,
+  lastDrawnBy: null,
+  viewerCount: 0,
   isSyncing: false,
   sessionError: null,
 
@@ -80,17 +112,20 @@ export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
       set({ credentials: existing, isSyncing: true, sessionError: null });
       try {
         await syncGameSession(existing, game);
+        startPresenceWatch(existing.id, (count) => set({ viewerCount: count }));
         set({ isSyncing: false });
         return;
       } catch {
         persistCredentials(null);
-        set({ credentials: null });
+        clearPresenceWatch();
+        set({ credentials: null, viewerCount: 0 });
       }
     }
 
     set({ isSyncing: true, sessionError: null });
     try {
       const credentials = await createAndPersistSession(ruleSet, game);
+      startPresenceWatch(credentials.id, (count) => set({ viewerCount: count }));
       set({ credentials, isSyncing: false, sessionError: null });
     } catch {
       set({
@@ -102,6 +137,15 @@ export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
   },
 
   async pushState(game, options) {
+    if (options?.clearLastDrawn) {
+      set({ lastDrawnRule: null, lastDrawnBy: null });
+    } else if (options?.lastDrawnRule) {
+      set({
+        lastDrawnRule: options.lastDrawnRule,
+        lastDrawnBy: options.lastDrawnBy ?? null,
+      });
+    }
+
     if (!isSupabaseConfigured() || !game.isActive) return;
 
     const credentials = get().credentials ?? loadCredentials();
@@ -129,8 +173,14 @@ export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
         // Session peut déjà être expirée ou invalide.
       }
     }
+    clearPresenceWatch();
     persistCredentials(null);
-    set({ credentials: null });
+    set({
+      credentials: null,
+      lastDrawnRule: null,
+      lastDrawnBy: null,
+      viewerCount: 0,
+    });
   },
 
   startHeartbeat(getGame) {

@@ -61,8 +61,8 @@ export interface GameState {
   drawnSimpleRules: string[];
   totalTurns: number;
   isActive: boolean;
-  /** Joueur invité à utiliser le bouton Spéciale après un événement. */
-  specialHighlightPlayerId: string | null;
+  /** Le joueur actif a déjà pioché ce tour (guidage Piocher / Suivant). */
+  hasDrawnThisTurn: boolean;
 }
 
 export interface AppData {

@@ -9,7 +9,7 @@ const sourcePath =
 const raw = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
 const payload = { ...raw.ruleSet, name: 'Before Origin' };
 const description =
-  'Le deck de base Before — 31 règles pour démarrer une soirée.';
+  'Le deck de base Before — 30 règles pour démarrer une soirée.';
 const payloadJson = JSON.stringify(payload);
 
 const sql = `insert into public.catalog_lists (id, name, description, payload, version, author_type, sort_order)

@@ -186,15 +186,6 @@
       "showRemainingTurns": true
     },
     {
-      "id": "1781291484166_8mnx54a",
-      "type": "simple",
-      "title": "Pile ou face ?",
-      "description": "Pioche immédiatement une règle spéciale.",
-      "canBeRedrawn": false,
-      "durationType": "turns",
-      "showRemainingTurns": true
-    },
-    {
       "id": "1781291484166_u9en8xy",
       "type": "special",
       "title": "Cul sec pas cool",

@@ -2,22 +2,53 @@
 
 Le jeu qu'on lance avant de sortir, ou même après. Web-app de règles perso entre amis — un téléphone suffit.
 
-## Fonctionnalités (MVP)
+## Fonctionnalités
+
+### Listes et catalogue
 
 - Création et gestion de sets de règles (simple, persistante, spéciale)
-- Configuration de partie (joueurs, ordre de passage, choix du set)
-- Partie en cours (piocher, événement spécial, règles actives, tour par tour)
-- Sauvegarde locale (localStorage)
-- Export / import JSON par set de règles
-- Mode spectateur live (code à 6 caractères, lecture seule sur un autre appareil)
+- Export / import JSON par set
+- **Catalogue officiel** (`/sets/catalog`) — lecture publique, copie éditable dans « Mes listes »
+- **Before Origin** : deck de base (30 règles), importable en un clic
+
+### Partie (pass-and-play)
+
+- Configuration : joueurs, ordre (drag & drop), choix du set
+- **Piocher** / **Suivant** avec guidage visuel (`hasDrawnThisTurn` persisté dans l’état de partie)
+- **Événement spécial** : à chaque pioche, probabilité configurable de tirer **directement** une règle spéciale au hasard (modale mise en avant, sans bouton « Spéciale »)
+- Règles persistantes actives, remélange des simples (mode exhaustif), recommencer le tour
+- **Dernière règle piochée** affichée sur l’écran hôte (même carte que le spectateur), survit à la navigation (ex. paramètres joueurs)
+- Sauvegarde locale de la partie en cours (`localStorage`)
+
+### Comptes (optionnel)
+
+- **Invité** : listes et partie en local
+- **Connecté** (email OTP ou Google) : listes synchronisées dans Supabase (`rule_lists`)
+- Fusion des listes locales à la première connexion (dialogue de migration)
+
+### Mode spectateur live
+
+- L’hôte diffuse la partie via un **code à 6 caractères** (bandeau en haut de `/game`)
+- Un autre appareil ouvre `/watch` ou le lien partagé — **sans compte**
+- Affichage : joueur actif, **dernière règle piochée**, règles persistantes
+- **Compteur de spectateurs** (`👁 N`) dans le bandeau hôte (Realtime Presence)
+- Déconnexion hôte détectée après 30 s sans heartbeat ; fin de partie propagée aux lecteurs
+
+### Retours
+
+- Bugs / idées depuis les écrans Partie et Spectateur (auth requise)
+- Stockage `feedback` + limite 1 msg/min/utilisateur
+- Notification email optionnelle (Edge Function `notify-feedback` + Resend)
 
 ## Stack
 
-- React + Vite + TypeScript
+- React 19 + Vite + TypeScript
 - Tailwind CSS v4
-- Zustand (état applicatif)
+- Zustand
 - React Router
 - @dnd-kit (réorganisation des joueurs)
+- Supabase (auth, Postgres, Realtime, Edge Functions)
+- @vercel/analytics (stats de visite en prod)
 - Lucide (icônes)
 
 ## Démarrage
@@ -30,7 +61,9 @@ npm run dev
 
 Ouvrir [http://localhost:5173](http://localhost:5173).
 
-### Supabase (auth + listes cloud)
+Sans `.env.local`, l’app fonctionne en **mode invité** (listes et partie en local uniquement, pas de spectateur ni sync cloud).
+
+### Supabase
 
 1. Créer un projet sur [supabase.com](https://supabase.com)
 2. **SQL Editor** → exécuter les migrations dans l’ordre :
@@ -42,10 +75,11 @@ Ouvrir [http://localhost:5173](http://localhost:5173).
    - `supabase/migrations/20250613140000_feedback_notify_trigger.sql`
    - `supabase/migrations/20250613150000_catalog_lists.sql`
    - `supabase/migrations/20250613150100_catalog_origin_seed.sql`
+   - `supabase/migrations/20250613150200_catalog_origin_remove_pile_ou_face.sql`
 3. **Authentication → Providers** :
-   - Email : activer
+   - Email : activer (OTP)
    - Google : activer et configurer (Client ID Google Cloud)
-4. **Authentication → Email Templates** : templates brandés dans `supabase/email-templates/` (fond sombre, accent violet, comme l’app). **Resend** ne fait que l’envoi SMTP.
+4. **Authentication → Email Templates** : templates dans `supabase/email-templates/` (fond sombre, accent violet).
 
    **Règle** : utiliser `{{ .Token }}` uniquement — **pas** de `{{ .ConfirmationURL }}` (sinon magic link au lieu du code OTP).
 
@@ -54,41 +88,59 @@ Ouvrir [http://localhost:5173](http://localhost:5173).
    | **Magic link or OTP** | `supabase/email-templates/magic-link-otp.html` | `Votre code Before` |
    | **Confirm signup** | `supabase/email-templates/confirm-signup.html` | `Bienvenue sur Before` |
 
-   Dans le dashboard : ouvrir le template → coller le HTML du fichier → **Save**. Désactiver le tracking de liens chez Resend si possible (il peut casser les URLs).
-
-   **OTP length** : le projet est configuré en **8 chiffres** — doit correspondre à `EMAIL_OTP_LENGTH` dans `src/lib/authConfig.ts` et à **Authentication → Providers → Email**.
-5. **Authentication → URL Configuration** (Google OAuth) :
+   **OTP length** : **8 chiffres** — aligné avec `src/lib/authConfig.ts` et **Authentication → Providers → Email**.
+5. **Authentication → URL Configuration** :
    - Site URL : `http://localhost:5173`
-   - Redirect URLs : `http://localhost:5173/auth/callback` (+ URL de prod ; les query `?next=` / `?feedback=` sont autorisées sur ce chemin)
-6. **Project Settings → API** : copier URL et `anon` key dans `.env.local`
+   - Redirect URLs : `http://localhost:5173/auth/callback` (+ URL de prod)
+6. **Project Settings → API** : copier URL et clé `anon` dans `.env.local` :
 
-Sans `.env.local`, l'app fonctionne en **mode invité** (listes en local uniquement, pas de mode spectateur).
+```env
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+```
 
-### Mode spectateur
+### Temps réel (parties live)
 
-L’hôte lance une partie sur son téléphone : un **code à 6 caractères** apparaît en haut de l’écran de jeu. Un autre appareil ouvre `/watch` (ou le lien partagé) et entre le code — **sans compte**.
+Deux mécanismes Supabase Realtime (WebSocket, pas de webhooks) :
 
-- Le lecteur voit la **dernière règle piochée**, le joueur actif et les règles persistantes actives.
-- Si l’hôte ferme l’app ou perd la connexion (> 30 s) : **partie déconnectée**.
-- Fin de partie côté hôte : **partie terminée** pour les lecteurs.
-- Les sessions sont **supprimées automatiquement** par un cron Supabase (`pg_cron`, toutes les heures) quand `expires_at` est dépassé (TTL par défaut : 24 h après création). La fin de partie marque `status = ended` mais ne purge pas tout de suite.
+| Usage | Mécanisme |
+|-------|-----------|
+| État de partie (spectateur) | **Postgres Changes** sur `game_sessions` — l’hôte pousse via RPC `sync_game_session`, les lecteurs reçoivent les `UPDATE` |
+| Compteur spectateurs | **Presence** sur un canal dédié — chaque lecteur `track` à la connexion, l’hôte compte les présences |
 
-### Retours (bugs / idées)
+L’hôte envoie aussi un **heartbeat** toutes les 15 s (`host_seen_at`). Les spectateurs ont un **polling** de secours toutes les 10 s si Realtime est indisponible.
 
-- Icône dans le header de **Partie** et **Spectateur** → modale Bug / Idée.
-- **Connexion obligatoire** ; sinon écran « Connecte-toi pour nous écrire » puis retour automatique sur la page d’origine.
-- Stockage dans la table `feedback` (dashboard Supabase → **Table Editor**).
-- Limite : **1 message / minute / utilisateur** (côté RPC).
+Les sessions expirent après 24 h (`expires_at`) et sont purgées par un cron `pg_cron` (toutes les heures).
 
-**Notifications email (optionnel)** : Edge Function `notify-feedback` + trigger `pg_net` (secrets Resend dans Supabase).
+### Catalogue officiel
 
-### Catalogue de listes
+- **Mes listes** → **Découvrir le catalogue** (`/sets/catalog`)
+- Table `catalog_lists` (lecture publique, RLS)
+- Pour mettre à jour **Before Origin** :
 
-- Accessible depuis **Mes listes** → **Découvrir le catalogue** (`/sets/catalog`).
-- Lecture publique (invités et connectés) via la table `catalog_lists`.
-- **Ajouter à mes listes** crée une copie éditable dans `rule_lists` (local ou cloud).
-- Pour publier / mettre à jour une liste officielle : éditer le JSON source puis
-  `node scripts/seed-catalog-origin.mjs chemin/vers/export.json` et ré-exécuter le SQL généré dans `supabase/seeds/seed_catalog_origin.sql`.
+```bash
+node scripts/seed-catalog-origin.mjs chemin/vers/export.json
+# puis appliquer le SQL généré dans supabase/seeds/seed_catalog_origin.sql
+# (ou créer une nouvelle migration)
+```
+
+### Notifications feedback (optionnel)
+
+Edge Function `supabase/functions/notify-feedback` + trigger `pg_net` sur insert `feedback`. Secrets Resend à configurer dans le dashboard Supabase.
+
+## Routes principales
+
+| Route | Description |
+|-------|-------------|
+| `/` | Accueil |
+| `/sets` | Mes listes |
+| `/sets/catalog` | Catalogue officiel |
+| `/setup` | Configurer une partie |
+| `/game` | Partie en cours |
+| `/game/settings` | Joueurs en cours de partie |
+| `/watch` | Rejoindre en spectateur |
+| `/watch/:code` | Spectateur (lien direct) |
+| `/auth` | Connexion (optionnelle) |
 
 ## Build
 
@@ -102,12 +154,19 @@ npm run preview
 ```
 src/
   core/       # Moteur de jeu (logique pure, sans React)
-  storage/    # Persistance locale (swappable pour API plus tard)
-  stores/     # État global Zustand
+  storage/    # localStorage, Supabase (listes, sessions, catalogue, présence)
+  stores/     # Zustand (app, auth, live host, spectateur)
   components/ # UI réutilisable
   pages/      # Écrans
   types/      # Types partagés
+supabase/
+  migrations/     # Schéma Postgres + RPC + Realtime publication
+  functions/        # Edge Functions (notify-feedback)
+  email-templates/  # Templates auth brandés
+  seeds/            # Payload catalogue (Before Origin)
 ```
+
+**Modèle de données live** : l’hôte est la source de vérité (état en local) ; chaque action pousse un snapshot JSON dans `game_sessions`. Les spectateurs ne font que lire.
 
 ## Design
 
@@ -121,3 +180,5 @@ Build statique compatible Vercel, Netlify ou Cloudflare Pages :
 npm run build
 # dist/
 ```
+
+Sur Vercel : `@vercel/analytics` est actif automatiquement. Penser à configurer les variables `VITE_SUPABASE_*` et les redirect URLs Supabase pour l’URL de prod.

@@ -1,9 +1,10 @@
 import { hasPendingPlayerChanges } from '../core/gameEngine';
 import clsx from 'clsx';
 import { LogOut, RotateCcw, Settings, Sparkles, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FeedbackButton } from '../components/feedback/FeedbackButton';
+import { LastDrawnRuleCard } from '../components/game/LastDrawnRuleCard';
 import { LiveSessionBanner } from '../components/game/LiveSessionBanner';
 import { TurnPlayerCard } from '../components/game/TurnPlayerCard';
 import { CollapsibleSection } from '../components/CollapsibleSection';
@@ -24,7 +25,6 @@ export function GamePage() {
     game,
     ruleSets,
     drawRule,
-    drawSpecialRule,
     nextPlayer,
     resetGame,
     resetRound,
@@ -35,9 +35,8 @@ export function GamePage() {
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmResetRound, setConfirmResetRound] = useState(false);
   const [cycleResetVisible, setCycleResetVisible] = useState(false);
-  const [specialEventOpen, setSpecialEventOpen] = useState(false);
-  const [hasDrawnThisTurn, setHasDrawnThisTurn] = useState(false);
-  const lastTurnKeyRef = useRef('');
+  const lastDrawnRule = useLiveSessionStore((s) => s.lastDrawnRule);
+  const lastDrawnBy = useLiveSessionStore((s) => s.lastDrawnBy);
   const startHeartbeat = useLiveSessionStore((s) => s.startHeartbeat);
   const stopHeartbeat = useLiveSessionStore((s) => s.stopHeartbeat);
   const ensureSession = useLiveSessionStore((s) => s.ensureSession);
@@ -52,25 +51,14 @@ export function GamePage() {
     return () => stopHeartbeat();
   }, [game.isActive, ruleSet, ensureSession, startHeartbeat, stopHeartbeat]);
 
-  const turnKey = `${game.totalTurns}:${game.currentPlayerIndex}`;
-
-  useEffect(() => {
-    if (lastTurnKeyRef.current !== turnKey) {
-      lastTurnKeyRef.current = turnKey;
-      setHasDrawnThisTurn(false);
-    }
-  }, [turnKey]);
-
-  const suggestDraw = !hasDrawnThisTurn;
-  const suggestNext = hasDrawnThisTurn;
+  const suggestDraw = !game.hasDrawnThisTurn;
+  const suggestNext = game.hasDrawnThisTurn;
   const flowHighlight =
     'border-accent/60 bg-accent/15 text-foreground shadow-[0_0_16px_rgba(168,85,247,0.35)]';
   const flowMuted = 'opacity-45 hover:opacity-70';
 
   const currentPlayer = game.currentPlayers[game.currentPlayerIndex];
   const pendingChanges = hasPendingPlayerChanges(game);
-  const specialHighlighted =
-    game.specialHighlightPlayerId === currentPlayer?.id;
 
   if (!game.isActive || !currentPlayer || !ruleSet) {
     return (
@@ -93,23 +81,7 @@ export function GamePage() {
       }
       return;
     }
-    if ('kind' in result) {
-      setCycleResetVisible(false);
-      setSpecialEventOpen(true);
-      return;
-    }
     setCycleResetVisible(false);
-    setHasDrawnThisTurn(true);
-    setDrawnRule(result.rule);
-  };
-
-  const handleSpecial = () => {
-    const result = drawSpecialRule();
-    if (!result.ok) {
-      setInfo('Aucune règle spéciale disponible');
-      return;
-    }
-    setHasDrawnThisTurn(true);
     setDrawnRule(result.rule);
   };
 
@@ -124,6 +96,8 @@ export function GamePage() {
     setConfirmResetRound(false);
     setCycleResetVisible(false);
   };
+
+  const isSpecialDraw = drawnRule?.type === 'special';
 
   return (
     <AppShell
@@ -206,6 +180,18 @@ export function GamePage() {
 
         <TurnPlayerCard game={game} showTurnDots />
 
+        {lastDrawnRule ? (
+          <LastDrawnRuleCard
+            rule={lastDrawnRule}
+            drawnBy={lastDrawnBy}
+            currentPlayer={currentPlayer}
+          />
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-surface-1/50 px-4 py-8 text-center">
+            <p className="text-sm text-muted">Aucune règle piochée pour l’instant.</p>
+          </div>
+        )}
+
         {game.activePersistentRules.length > 0 && (
           <CollapsibleSection
             title="Règles persistantes actives"
@@ -234,29 +220,16 @@ export function GamePage() {
 
       <div className="fixed bottom-0 left-0 right-0 p-4 border-t border-border/80 bg-background/90 backdrop-blur-md">
         <div className="mx-auto max-w-lg flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="secondary"
-              onClick={handleSpecial}
-              className={clsx(
-                specialHighlighted &&
-                  'border-accent/60 bg-accent/15 text-accent-foreground shadow-[0_0_16px_rgba(168,85,247,0.4)] animate-pulse',
-              )}
-            >
-              <Sparkles size={18} />
-              Spéciale
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => nextPlayer()}
-              className={clsx(
-                suggestNext && flowHighlight,
-                suggestDraw && flowMuted,
-              )}
-            >
-              Suivant
-            </Button>
-          </div>
+          <Button
+            variant="secondary"
+            onClick={() => nextPlayer()}
+            className={clsx(
+              suggestNext && flowHighlight,
+              suggestDraw && flowMuted,
+            )}
+          >
+            Suivant
+          </Button>
           <Button
             fullWidth
             onClick={handleDraw}
@@ -272,32 +245,20 @@ export function GamePage() {
       </div>
 
       <Modal
-        open={specialEventOpen}
-        title="Événement spécial !"
-        onClose={() => setSpecialEventOpen(false)}
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-center">
-            <div className="rounded-full bg-accent/15 border border-accent/30 p-4 glow-accent">
-              <Sparkles size={32} className="text-accent" />
-            </div>
-          </div>
-          <p className="text-muted leading-relaxed text-center">
-            <span className="font-semibold text-foreground">{currentPlayer.name}</span>
-            , appuyez sur le bouton{' '}
-            <span className="font-semibold text-accent">Spéciale</span> pour piocher
-            une carte spéciale.
-          </p>
-        </div>
-      </Modal>
-
-      <Modal
         open={!!drawnRule}
         title={drawnRule?.title ?? ''}
+        variant={isSpecialDraw ? 'special' : 'default'}
         onClose={() => setDrawnRule(null)}
       >
         {drawnRule && (
           <div className="flex flex-col gap-3">
+            {isSpecialDraw && (
+              <div className="flex justify-center pb-1">
+                <div className="rounded-full bg-accent/20 border border-accent/40 p-3 glow-accent animate-pulse">
+                  <Sparkles size={28} className="text-accent" />
+                </div>
+              </div>
+            )}
             <p className="text-base text-foreground leading-relaxed whitespace-pre-wrap">
               <RuleTypeBadge
                 type={drawnRule.type}
