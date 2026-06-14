@@ -4,6 +4,7 @@ import {
   getRemainingCopies,
   getRuleCopies,
   getPersistentDrawChance,
+  getPlayableRules,
   getSpecialTriggerChance,
   isEveryonePersistent,
   isUnlimitedPersistent,
@@ -178,7 +179,7 @@ function getAvailableSimpleRules(
   ruleSet: RuleSet,
   state: GameState,
 ): Rule[] {
-  const simpleRules = ruleSet.rules.filter((r) => r.type === 'simple');
+  const simpleRules = getPlayableRules(ruleSet).filter((r) => r.type === 'simple');
   return simpleRules.filter((rule) => {
     if (state.rulesToReactivateNextRound.some((r) => r.id === rule.id)) {
       return false;
@@ -206,7 +207,9 @@ function getAvailablePersistentRules(
   ruleSet: RuleSet,
   state: GameState,
 ): Rule[] {
-  const persistentRules = ruleSet.rules.filter((r) => r.type === 'persistent');
+  const persistentRules = getPlayableRules(ruleSet).filter(
+    (r) => r.type === 'persistent',
+  );
   return persistentRules.filter((rule) => {
     const isActive = state.activePersistentRules.some(
       (ar) => ar.rule.id === rule.id,
@@ -227,7 +230,7 @@ function rollSpecialEvent(
   ruleSet: RuleSet,
   state: GameState,
 ): DrawResult | null {
-  const specialRules = ruleSet.rules.filter((r) => r.type === 'special');
+  const specialRules = getPlayableRules(ruleSet).filter((r) => r.type === 'special');
   if (specialRules.length === 0) return null;
 
   const chance = getSpecialTriggerChance(ruleSet);
@@ -243,8 +246,9 @@ function rollSpecialEvent(
 }
 
 export function drawRule(ruleSet: RuleSet, state: GameState): DrawResult {
-  const hasSimple = ruleSet.rules.some((r) => r.type === 'simple');
-  const hasPersistent = ruleSet.rules.some((r) => r.type === 'persistent');
+  const playable = getPlayableRules(ruleSet);
+  const hasSimple = playable.some((r) => r.type === 'simple');
+  const hasPersistent = playable.some((r) => r.type === 'persistent');
 
   if (!hasSimple && !hasPersistent) {
     return { ok: false, reason: 'no_rules' };

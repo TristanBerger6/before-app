@@ -12,6 +12,7 @@ import {
   getSimpleDeckSize,
   hasPersistentRules,
   hasSpecialRules,
+  isRuleEnabled,
 } from '../core/ruleHelpers';
 import {
   readRuleSetSectionState,
@@ -127,7 +128,18 @@ export function RuleSetEditPage() {
     setDeleteRuleId(null);
   };
 
+  const toggleRuleEnabled = (ruleId: string, enabled: boolean) => {
+    setRuleSet((prev) => ({
+      ...prev,
+      rules: prev.rules.map((r) =>
+        r.id === ruleId ? { ...r, enabled } : r,
+      ),
+    }));
+  };
+
   const grouped = (type: RuleType) => ruleSet.rules.filter((r) => r.type === type);
+  const enabledInGroup = (type: RuleType) =>
+    grouped(type).filter(isRuleEnabled);
   const specialRulesAvailable = hasSpecialRules(ruleSet);
   const storedSpecialChance = ruleSet.specialTriggerChance ?? 0;
   const storedPersistentChance =
@@ -145,9 +157,10 @@ export function RuleSetEditPage() {
       <div className="flex flex-col gap-6 pb-28">
         {editingDuringGame && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-muted leading-relaxed">
-            Partie en cours : les règles supprimées ou modifiées quittent la
-            partie. Changer l&apos;option «&nbsp;chaque règle simple ne sort
-            qu&apos;une fois&nbsp;» remélange le deck simple.
+            Partie en cours : les règles désactivées ou supprimées quittent la
+            partie immédiatement après enregistrement. Changer l&apos;option
+            «&nbsp;chaque règle simple ne sort qu&apos;une fois&nbsp;» remélange
+            le deck simple.
           </div>
         )}
         <Input
@@ -206,7 +219,13 @@ export function RuleSetEditPage() {
 
         {(['simple', 'persistent', 'special'] as RuleType[]).map((type) => {
           const rules = grouped(type);
+          const activeRules = enabledInGroup(type);
+          const disabledCount = rules.length - activeRules.length;
           const defaultOpen = rules.length <= 4;
+          const sectionCount =
+            type === 'simple'
+              ? getSimpleDeckSize(activeRules)
+              : activeRules.length;
 
           return (
             <div key={type} className="flex flex-col gap-3">
@@ -223,12 +242,12 @@ export function RuleSetEditPage() {
               ) : (
                 <CollapsibleSection
                   title={typeLabels[type]}
-                  description={getTypeHelp(type, ruleSet)}
-                  count={
-                    type === 'simple'
-                      ? getSimpleDeckSize(rules)
-                      : rules.length
+                  description={
+                    disabledCount > 0
+                      ? `${getTypeHelp(type, ruleSet)} ${disabledCount} désactivée${disabledCount > 1 ? 's' : ''}.`
+                      : getTypeHelp(type, ruleSet)
                   }
+                  count={sectionCount}
                   open={isSectionOpen(type, defaultOpen)}
                   onOpenChange={(open) => handleSectionOpenChange(type, open)}
                   maxHeight={rules.length > 8 ? '12rem' : '16rem'}
@@ -237,6 +256,10 @@ export function RuleSetEditPage() {
                     <RuleListItem
                       key={rule.id}
                       title={rule.title}
+                      enabled={isRuleEnabled(rule)}
+                      onToggleEnabled={(enabled) =>
+                        toggleRuleEnabled(rule.id, enabled)
+                      }
                       copies={type === 'simple' ? getRuleCopies(rule) : undefined}
                       durationBadge={
                         type === 'persistent'

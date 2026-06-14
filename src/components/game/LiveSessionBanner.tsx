@@ -8,6 +8,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useState } from 'react';
+import QRCode from 'react-qr-code';
 import { buildWatchUrl } from '../../lib/liveSessionConfig';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { useAppStore } from '../../stores/appStore';
@@ -119,9 +120,26 @@ export function LiveSessionBanner() {
       <Modal open={open} title="Diffuser la partie" onClose={close}>
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted leading-relaxed">
-            Partagez le code ou le lien pour qu’un autre appareil suive la partie
-            en temps réel — sans compte.
+            Scannez le QR code ou partagez le code pour qu’un autre appareil suive
+            la partie en temps réel — sans compte.
           </p>
+
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface-2 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">
+              Lien spectateur
+            </p>
+            <div className="rounded-xl bg-white p-3">
+              <QRCode
+                value={watchUrl}
+                size={168}
+                level="M"
+                aria-label={`QR code pour rejoindre la partie ${credentials.code}`}
+              />
+            </div>
+            <p className="text-xs text-muted text-center">
+              Ouvre directement la page spectateur sur l’autre téléphone.
+            </p>
+          </div>
 
           <div className="rounded-xl border border-border bg-surface-2 p-4 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted mb-2">

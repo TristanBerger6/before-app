@@ -1,4 +1,4 @@
-import { Download, Library, Plus, Trash2, Upload } from 'lucide-react';
+import { CopyPlus, Download, Library, Plus, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
@@ -6,12 +6,14 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { countPlayableRules } from '../core/ruleHelpers';
 import { useAppStore } from '../stores/appStore';
 import { useAuthStore } from '../stores/authStore';
 
 export function RuleSetListPage() {
   const navigate = useNavigate();
-  const { ruleSets, deleteRuleSet, exportRuleSet, importRuleSet } = useAppStore();
+  const { ruleSets, deleteRuleSet, duplicateRuleSet, exportRuleSet, importRuleSet } =
+    useAppStore();
   const user = useAuthStore((s) => s.user);
   const showGuestBanner = isSupabaseConfigured() && !user;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -84,7 +86,13 @@ export function RuleSetListPage() {
               >
                 <h2 className="font-display text-lg">{set.name}</h2>
                 <p className="text-sm text-muted mt-1">
-                  {set.rules.length} règle{set.rules.length !== 1 ? 's' : ''}
+                  {(() => {
+                    const active = countPlayableRules(set);
+                    const total = set.rules.length;
+                    const label = `${total} règle${total !== 1 ? 's' : ''}`;
+                    if (active === total) return label;
+                    return `${label} (${active} active${active !== 1 ? 's' : ''})`;
+                  })()}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -94,6 +102,18 @@ export function RuleSetListPage() {
                   onClick={() => navigate(`/sets/${set.id}`)}
                 >
                   Modifier
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="px-4 py-2.5"
+                  onClick={() => {
+                    void duplicateRuleSet(set.id).then((dup) => {
+                      if (dup) showToast(`« ${dup.name} » créée`);
+                    });
+                  }}
+                  aria-label="Dupliquer"
+                >
+                  <CopyPlus size={18} />
                 </Button>
                 <Button
                   variant="secondary"

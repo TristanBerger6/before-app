@@ -1,5 +1,18 @@
 import type { PersistentScope, Rule, RuleSet } from '../types';
 
+/** Règle incluse dans le pool de pioche (défaut : active). */
+export function isRuleEnabled(rule: Rule): boolean {
+  return rule.enabled !== false;
+}
+
+export function getPlayableRules(ruleSet: RuleSet): Rule[] {
+  return ruleSet.rules.filter(isRuleEnabled);
+}
+
+export function countPlayableRules(ruleSet: RuleSet): number {
+  return getPlayableRules(ruleSet).length;
+}
+
 export function getRuleCopies(rule: Rule): number {
   if (rule.type !== 'simple') return 1;
   const copies = rule.copies ?? 1;
@@ -68,11 +81,11 @@ export function getSpecialTriggerChance(ruleSet: RuleSet): number {
 }
 
 export function hasSpecialRules(ruleSet: RuleSet): boolean {
-  return ruleSet.rules.some((r) => r.type === 'special');
+  return getPlayableRules(ruleSet).some((r) => r.type === 'special');
 }
 
 export function hasPersistentRules(ruleSet: RuleSet): boolean {
-  return ruleSet.rules.some((r) => r.type === 'persistent');
+  return getPlayableRules(ruleSet).some((r) => r.type === 'persistent');
 }
 
 export function getPersistentDrawChance(ruleSet: RuleSet): number {
@@ -94,7 +107,7 @@ export function isSimpleDeckExhausted(
   ruleSet: RuleSet,
   drawnIds: string[],
 ): boolean {
-  const simpleRules = ruleSet.rules.filter((r) => r.type === 'simple');
+  const simpleRules = getPlayableRules(ruleSet).filter((r) => r.type === 'simple');
   if (simpleRules.length === 0) return false;
   return simpleRules.every(
     (rule) => getRemainingCopies(rule, drawnIds) === 0,

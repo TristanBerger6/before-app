@@ -78,8 +78,9 @@ export function GameSettingsPage() {
           <section>
             <h2 className="font-display text-lg mb-3">Liste de règles</h2>
             <p className="text-sm text-muted leading-relaxed mb-3">
-              Ajoutez, modifiez ou supprimez des règles pendant la partie. Les
-              changements s&apos;appliquent immédiatement au tirage.
+              Activez, désactivez, ajoutez ou modifiez des règles pendant la
+              partie. Les changements s&apos;appliquent au tirage après
+              enregistrement.
             </p>
             <Button
               variant="secondary"

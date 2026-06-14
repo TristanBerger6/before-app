@@ -13,6 +13,9 @@ interface RuleListItemProps {
   persistentScope?: PersistentScope;
   /** Durée persistante (ex. « 3 tours », « ∞ ») */
   durationBadge?: string;
+  /** Incluse dans le pool de pioche */
+  enabled?: boolean;
+  onToggleEnabled?: (enabled: boolean) => void;
   onClick?: () => void;
   onDelete?: () => void;
   deleteLabel?: string;
@@ -30,6 +33,8 @@ export function RuleListItem({
   copies,
   persistentScope,
   durationBadge,
+  enabled = true,
+  onToggleEnabled,
   onClick,
   onDelete,
   deleteLabel = 'Supprimer',
@@ -40,7 +45,8 @@ export function RuleListItem({
     <div
       className={clsx(
         'flex items-center gap-2 rounded-xl px-3 py-2.5 min-h-[2.75rem]',
-        interactive && 'cursor-pointer hover:bg-surface-2 transition-colors duration-200',
+        !enabled && 'opacity-50',
+        interactive && enabled && 'cursor-pointer hover:bg-surface-2 transition-colors duration-200',
       )}
       onClick={onClick}
       onKeyDown={
@@ -91,6 +97,32 @@ export function RuleListItem({
         )}
       </div>
       {meta && <div className="shrink-0 text-xs text-accent font-medium">{meta}</div>}
+      {onToggleEnabled && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={enabled ? 'Désactiver la règle' : 'Activer la règle'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleEnabled(!enabled);
+          }}
+          className={clsx(
+            'relative h-3.5 w-6 shrink-0 rounded-full border transition-colors duration-200 cursor-pointer',
+            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40',
+            enabled
+              ? 'border-accent/35 bg-accent/20'
+              : 'border-border/60 bg-surface-2',
+          )}
+        >
+          <span
+            className={clsx(
+              'absolute top-1/2 -translate-y-1/2 left-0.5 h-2 w-2 rounded-full transition-transform duration-200',
+              enabled ? 'translate-x-2.5 bg-accent' : 'bg-muted/50',
+            )}
+          />
+        </button>
+      )}
       {onDelete && (
         <button
           type="button"

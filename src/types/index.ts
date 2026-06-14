@@ -23,6 +23,8 @@ export interface Rule {
   copies?: number;
   /** Règles persistantes : joueur qui a pioché ou tout le monde. */
   persistentScope?: PersistentScope;
+  /** false = exclue du tirage (reste dans la liste). Défaut : active. */
+  enabled?: boolean;
 }
 
 export interface RuleSet {

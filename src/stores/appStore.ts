@@ -68,6 +68,7 @@ interface AppStore {
 
   exportRuleSet: (id: string) => void;
   importRuleSet: (file: File) => Promise<RuleSet>;
+  duplicateRuleSet: (id: string) => Promise<RuleSet | null>;
   addFromCatalog: (catalogId: string) => Promise<RuleSet | null>;
 }
 
@@ -331,6 +332,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const ruleSet = parseRuleSetFile(text);
     await get().saveRuleSet(ruleSet);
     return ruleSet;
+  },
+
+  async duplicateRuleSet(id) {
+    const original = get().ruleSets.find((rs) => rs.id === id);
+    if (!original) return null;
+
+    const duplicate = cloneRuleSetWithNewIds({
+      ...original,
+      name: `${original.name} (copie)`,
+    });
+    await get().saveRuleSet(duplicate);
+    return duplicate;
   },
 
   async addFromCatalog(catalogId) {
