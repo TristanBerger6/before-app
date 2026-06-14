@@ -16,7 +16,6 @@ interface AuthStore {
   user: User | null;
   session: Session | null;
   isAuthReady: boolean;
-  authError: string | null;
 
   initialize: () => Promise<void>;
   sendEmailOtp: (email: string) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -29,14 +28,12 @@ interface AuthStore {
     openFeedback?: boolean;
   }) => Promise<{ ok: true } | { ok: false; error: string }>;
   signOut: () => Promise<void>;
-  clearAuthError: () => void;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   session: null,
   isAuthReady: false,
-  authError: null,
 
   async initialize() {
     if (!isSupabaseConfigured()) {
@@ -177,12 +174,4 @@ export const useAuthStore = create<AuthStore>((set) => ({
     await supabase.auth.signOut();
     set({ user: null, session: null });
   },
-
-  clearAuthError() {
-    set({ authError: null });
-  },
 }));
-
-export function useIsAuthenticated(): boolean {
-  return useAuthStore((s) => s.user != null);
-}

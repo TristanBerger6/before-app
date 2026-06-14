@@ -1,4 +1,4 @@
-import { normalizeGameState } from '../core/gameEngine';
+import { normalizeGameState, shouldPersistGame } from '../core/gameEngine';
 import type { AppData, GameState, RuleSet } from '../types';
 import type { StorageAdapter } from './types';
 
@@ -66,9 +66,6 @@ export async function saveGameToLocal(game: GameState | null): Promise<void> {
   const current = parseStored(readRaw());
   await localStorageAdapter.save({
     ruleSets: current.ruleSets,
-    game:
-      game && (game.isActive || game.nextRoundPlayers.length > 0)
-        ? game
-        : null,
+    game: game && shouldPersistGame(game) ? game : null,
   });
 }

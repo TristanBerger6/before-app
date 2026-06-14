@@ -1,7 +1,7 @@
 import { hasPendingPlayerChanges } from '../core/gameEngine';
 import clsx from 'clsx';
 import { LogOut, RotateCcw, Settings, Sparkles, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FeedbackButton } from '../components/feedback/FeedbackButton';
 import { LastDrawnRuleCard } from '../components/game/LastDrawnRuleCard';
@@ -37,19 +37,8 @@ export function GamePage() {
   const [cycleResetVisible, setCycleResetVisible] = useState(false);
   const lastDrawnRule = useLiveSessionStore((s) => s.lastDrawnRule);
   const lastDrawnBy = useLiveSessionStore((s) => s.lastDrawnBy);
-  const startHeartbeat = useLiveSessionStore((s) => s.startHeartbeat);
-  const stopHeartbeat = useLiveSessionStore((s) => s.stopHeartbeat);
-  const ensureSession = useLiveSessionStore((s) => s.ensureSession);
 
   const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
-
-  useEffect(() => {
-    if (game.isActive && ruleSet) {
-      void ensureSession(ruleSet, game);
-    }
-    startHeartbeat(() => useAppStore.getState().game);
-    return () => stopHeartbeat();
-  }, [game.isActive, ruleSet, ensureSession, startHeartbeat, stopHeartbeat]);
 
   const suggestDraw = !game.hasDrawnThisTurn;
   const suggestNext = game.hasDrawnThisTurn;

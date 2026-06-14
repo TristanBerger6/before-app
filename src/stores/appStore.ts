@@ -13,6 +13,7 @@ import {
   resetGame,
   resetRound,
   selectRuleSet,
+  shouldPersistGame,
   startGame,
 } from '../core/gameEngine';
 import { cloneRuleSetWithNewIds, downloadRuleSet, parseRuleSetFile } from '../core/ruleSetIO';
@@ -77,16 +78,13 @@ function getActiveUser(): User | null {
 }
 
 async function persistGame(game: GameState): Promise<void> {
-  await saveGameToLocal(
-    game.isActive || game.nextRoundPlayers.length > 0 ? game : null,
-  );
+  await saveGameToLocal(shouldPersistGame(game) ? game : null);
 }
 
 async function persistGuestRuleSets(ruleSets: RuleSet[], game: GameState): Promise<void> {
   const data: AppData = {
     ruleSets,
-    game:
-      game.isActive || game.nextRoundPlayers.length > 0 ? game : null,
+    game: shouldPersistGame(game) ? game : null,
   };
   await localStorageAdapter.save(data);
 }
@@ -135,14 +133,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
 
     useLiveSessionStore.getState().hydrateCredentials();
-    if (game.isActive) {
-      const ruleSet = effectiveRuleSets.find(
-        (rs) => rs.id === game.selectedRuleSetId,
-      );
-      if (ruleSet) {
-        void useLiveSessionStore.getState().ensureSession(ruleSet, game);
-      }
-    }
   },
 
   async handleAuthChange(user) {
@@ -150,9 +140,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { ruleSets, pendingLocalMerge } = await loadRuleSetsForUser(user);
 
     if (!user) {
-      const local = await loadLocalRuleSets();
-      set({ ruleSets: local, pendingLocalMerge: null });
-      await persistGuestRuleSets(local, game);
+      set({ ruleSets, pendingLocalMerge: null });
+      await persistGuestRuleSets(ruleSets, game);
       return;
     }
 
@@ -263,16 +252,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   startGame() {
-    const { ruleSets } = get();
     const game = startGame(get().game);
     set({ game });
     void persistGame(game);
     useLiveSessionStore.setState({ lastDrawnRule: null, lastDrawnBy: null });
-
-    const ruleSet = ruleSets.find((rs) => rs.id === game.selectedRuleSetId);
-    if (ruleSet) {
-      void useLiveSessionStore.getState().ensureSession(ruleSet, game);
-    }
   },
 
   drawRule() {

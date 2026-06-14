@@ -138,7 +138,11 @@ export function selectRuleSet(state: GameState, ruleSetId: string): GameState {
   };
 }
 
-export function startGame(state: GameState): GameState {
+export function shouldPersistGame(game: GameState): boolean {
+  return game.isActive || game.nextRoundPlayers.length > 0;
+}
+
+function beginActiveRound(state: GameState): GameState {
   const players = [...state.nextRoundPlayers];
   return {
     ...state,
@@ -154,21 +158,13 @@ export function startGame(state: GameState): GameState {
   };
 }
 
+export function startGame(state: GameState): GameState {
+  return beginActiveRound(state);
+}
+
 /** Recommence à zéro en gardant joueurs et set. */
 export function resetRound(state: GameState): GameState {
-  const players = [...state.nextRoundPlayers];
-  return {
-    ...state,
-    currentPlayers: players,
-    nextRoundPlayers: players,
-    currentPlayerIndex: 0,
-    activePersistentRules: [],
-    rulesToReactivateNextRound: [],
-    drawnSimpleRules: [],
-    totalTurns: 1,
-    isActive: true,
-    hasDrawnThisTurn: false,
-  };
+  return beginActiveRound(state);
 }
 
 export function resetGame(): GameState {
@@ -425,9 +421,6 @@ export function getCurrentTour(state: GameState): number {
   if (state.currentPlayers.length === 0) return 1;
   return Math.ceil(state.totalTurns / state.currentPlayers.length);
 }
-
-/** @deprecated Alias pour compatibilité interne */
-export const getCurrentRound = getCurrentTour;
 
 export function hasPendingPlayerChanges(state: GameState): boolean {
   if (state.currentPlayers.length !== state.nextRoundPlayers.length) {

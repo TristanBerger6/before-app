@@ -39,6 +39,7 @@ interface LiveSessionHostStore {
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let stopPresenceWatch: (() => void) | null = null;
 let presenceSessionId: string | null = null;
+let ensureSessionInFlight: Promise<void> | null = null;
 
 function startPresenceWatch(
   sessionId: string,
@@ -92,6 +93,12 @@ async function createAndPersistSession(
   return credentials;
 }
 
+function getCredentials(
+  get: () => LiveSessionHostStore,
+): LiveSessionCredentials | null {
+  return get().credentials ?? loadCredentials();
+}
+
 export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
   credentials: null,
   lastDrawnRule: null,
@@ -107,33 +114,43 @@ export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
   async ensureSession(ruleSet, game) {
     if (!isSupabaseConfigured() || !game.isActive) return;
 
-    const existing = get().credentials ?? loadCredentials();
-    if (existing) {
-      set({ credentials: existing, isSyncing: true, sessionError: null });
-      try {
-        await syncGameSession(existing, game);
-        startPresenceWatch(existing.id, (count) => set({ viewerCount: count }));
-        set({ isSyncing: false });
-        return;
-      } catch {
-        persistCredentials(null);
-        clearPresenceWatch();
-        set({ credentials: null, viewerCount: 0 });
-      }
+    if (ensureSessionInFlight) {
+      return ensureSessionInFlight;
     }
 
-    set({ isSyncing: true, sessionError: null });
-    try {
-      const credentials = await createAndPersistSession(ruleSet, game);
-      startPresenceWatch(credentials.id, (count) => set({ viewerCount: count }));
-      set({ credentials, isSyncing: false, sessionError: null });
-    } catch {
-      set({
-        isSyncing: false,
-        sessionError:
-          'Impossible de créer la session live. Vérifiez votre connexion.',
-      });
-    }
+    ensureSessionInFlight = (async () => {
+      const existing = getCredentials(get);
+      if (existing) {
+        set({ credentials: existing, isSyncing: true, sessionError: null });
+        try {
+          await syncGameSession(existing, game);
+          startPresenceWatch(existing.id, (count) => set({ viewerCount: count }));
+          set({ isSyncing: false });
+          return;
+        } catch {
+          persistCredentials(null);
+          clearPresenceWatch();
+          set({ credentials: null, viewerCount: 0 });
+        }
+      }
+
+      set({ isSyncing: true, sessionError: null });
+      try {
+        const credentials = await createAndPersistSession(ruleSet, game);
+        startPresenceWatch(credentials.id, (count) => set({ viewerCount: count }));
+        set({ credentials, isSyncing: false, sessionError: null });
+      } catch {
+        set({
+          isSyncing: false,
+          sessionError:
+            'Impossible de créer la session live. Vérifiez votre connexion.',
+        });
+      }
+    })().finally(() => {
+      ensureSessionInFlight = null;
+    });
+
+    return ensureSessionInFlight;
   },
 
   async pushState(game, options) {
@@ -148,7 +165,7 @@ export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
 
     if (!isSupabaseConfigured() || !game.isActive) return;
 
-    const credentials = get().credentials ?? loadCredentials();
+    const credentials = getCredentials(get);
     if (!credentials) return;
 
     set({ isSyncing: true });
@@ -165,7 +182,8 @@ export const useLiveSessionStore = create<LiveSessionHostStore>((set, get) => ({
   },
 
   async endSession() {
-    const credentials = get().credentials ?? loadCredentials();
+    get().stopHeartbeat();
+    const credentials = getCredentials(get);
     if (credentials && isSupabaseConfigured()) {
       try {
         await endGameSession(credentials);

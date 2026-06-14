@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/react';
 import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { LiveSessionHostSync } from './components/game/LiveSessionHostSync';
 import { MigrateLocalListsDialog } from './components/MigrateLocalListsDialog';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
@@ -56,6 +57,7 @@ function HydrationGate({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <LiveSessionHostSync />
       {children}
       <MigrateLocalListsDialog />
     </>
